@@ -25,6 +25,7 @@ const (
 	pageUser
 	pagePodcast
 	pagePodcasts
+	pageLocal
 )
 
 type route struct {
@@ -80,9 +81,14 @@ type app struct {
 	artists    map[int64]*artistData
 	artistTab  int // what an artist's page lists: artistHot, artistLatest, artistAlbums or artistEvents
 	albums     map[int64]*albumData
-	users      map[int64]*userData
-	podcasts   map[int64]*podcastData
-	podcastTab *podcastTab // the podcasts tab's lists
+		users      map[int64]*userData
+		podcasts   map[int64]*podcastData
+		podcastTab *podcastTab // the podcasts tab's lists
+
+		localTracks   []netease.Track
+		localDirs     []string
+		localScanning bool
+		localErr      string
 	trackList  ui.ListState
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.

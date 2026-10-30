@@ -61,8 +61,10 @@ type settings struct {
 	// CacheMB is how many megabytes the songs kept on disk may take; 0
 	// keeps none.
 	CacheMB int `json:"cacheMB"`
-	// SearchHistory keeps submitted keywords, most recent first.
-	SearchHistory []string `json:"searchHistory,omitempty"`
+		// SearchHistory keeps submitted keywords, most recent first.
+		SearchHistory []string `json:"searchHistory,omitempty"`
+		// LocalDirs keeps user-selected directories for local music scanning.
+		LocalDirs []string `json:"localDirs,omitempty"`
 
 	path string // where they were loaded from, and are saved to
 }

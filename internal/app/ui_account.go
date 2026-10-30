@@ -26,6 +26,10 @@ type loginState struct {
 // boot signs in with the session in the keychain, if any, then loads the
 // home page for whoever is listening.
 func (a *app) boot() {
+	a.localDirs = a.settings.LocalDirs
+	if len(a.localDirs) > 0 {
+		a.scanLocalDirs()
+	}
 	a.homeLoading = true
 	go func() {
 		var prof *netease.Profile

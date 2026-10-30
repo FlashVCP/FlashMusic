@@ -131,11 +131,15 @@ func (a *app) load(r route) {
 		a.loadAlbum(r.id)
 	case pageUser:
 		a.loadUser(r.id)
-	case pagePodcast:
-		a.loadPodcast(r.id)
-	case pagePodcasts:
-		a.loadPodcastTab()
-	}
+		case pagePodcast:
+			a.loadPodcast(r.id)
+		case pagePodcasts:
+			a.loadPodcastTab()
+		case pageLocal:
+			if len(a.localTracks) == 0 && !a.localScanning {
+				a.scanLocalDirs()
+			}
+		}
 }
 
 // back goes to the page before, as the back button of a mouse does, or
@@ -180,11 +184,12 @@ func (a *app) sidebar(c *ui.Context) {
 		a.searchField(c)
 
 		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
-			a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
-			a.navItem(c, iconDaily, "每日推荐", route{page: pageDaily})
-			a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
-			a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
-			a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
+				a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
+				a.navItem(c, iconDaily, "每日推荐", route{page: pageDaily})
+				a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
+				a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
+				a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
+				a.navItem(c, iconFolder, "本地音乐", route{page: pageLocal})
 			if a.searched.query != "" {
 				a.navItem(c, iconSearch, "搜索结果", a.searched)
 			}
@@ -367,11 +372,13 @@ func (a *app) content(c *ui.Context) {
 		a.albumPage(c)
 	case pageUser:
 		a.userPage(c)
-	case pagePodcast:
-		a.podcastPage(c)
-	case pagePodcasts:
-		a.podcastsPage(c)
-	}
+		case pagePodcast:
+			a.podcastPage(c)
+		case pagePodcasts:
+			a.podcastsPage(c)
+		case pageLocal:
+			a.localPage(c)
+		}
 }
 
 // centered shows a message, with a retry button if retry is set: what a
