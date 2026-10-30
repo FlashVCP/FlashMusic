@@ -254,11 +254,11 @@ func (a *app) accountRow(c *ui.Context) {
 	if a.profile == nil {
 		a.accountOpen = false
 		b.Label("登录").Children(func() {
-			ui.Box(c).Size(26, 26).Radius(13).Background(p.press).Center().Children(func() {
-				ui.Icon(c, iconUser).Size(14, 14).TextColor(p.muted)
+				ui.Box(c).Size(26, 26).Radius(13).Background(p.press).Center().Children(func() {
+					ui.Icon(c, iconUser).Size(14, 14).TextColor(p.muted)
+				})
+				ui.Text(c, "登录网易云账号").FontSize(13).FontWeight(500).TextColor(p.muted)
 			})
-			ui.Text(c, "登录网易云音乐").FontSize(13).FontWeight(500).TextColor(p.muted)
-		})
 		if b.Clicked() {
 			a.openLogin()
 		}

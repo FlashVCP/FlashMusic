@@ -146,12 +146,12 @@ func (a *app) settingsView(c *ui.Context) {
 					a.changed()
 				}
 			})
-			row("音量均衡", "按网易云音乐测得的响度调整每首歌的音量，让歌曲听起来一样响", func() {
-				if ui.Switch(c.Key("normalize"), &s.Normalize).Label("音量均衡").Changed() {
-					a.pl.SetVolume(a.volume)
-					a.changed()
-				}
-			})
+				row("音量均衡", "根据音频测得的响度自动调整每首歌的音量，让各曲目听起来一样响", func() {
+					if ui.Switch(c.Key("normalize"), &s.Normalize).Label("音量均衡").Changed() {
+						a.pl.SetVolume(a.volume)
+						a.changed()
+					}
+				})
 		})
 
 		if a.captionsShown() {
@@ -228,10 +228,10 @@ func (a *app) settingsView(c *ui.Context) {
 			prof := a.profile
 			ui.Row(c).Padding(12, 16).Gap(12).AlignItems(ui.Center).Children(func() {
 				a.avatar(c, prof.AvatarURL, 36, p.press)
-				ui.Column(c).Grow(1).Gap(2).Children(func() {
-					ui.Text(c, prof.Nickname).FontSize(13.5).FontWeight(600)
-					ui.Text(c, "已登录网易云音乐").FontSize(12).TextColor(p.muted)
-				})
+					ui.Column(c).Grow(1).Gap(2).Children(func() {
+						ui.Text(c, prof.Nickname).FontSize(13.5).FontWeight(600)
+						ui.Text(c, "网易云账号已登录").FontSize(12).TextColor(p.muted)
+					})
 				if ui.Button(c.Key("logout"), "退出登录").Clicked() {
 					a.signOut()
 				}

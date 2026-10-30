@@ -345,10 +345,10 @@ func (a *app) loadPodcastTab() {
 		hot, more, err2 := hotPodcasts(programsPage, 0)
 		a.post(func() {
 			t.loading = false
-			if err1 != nil && err2 != nil {
-				t.err = "无法连接网易云音乐，请检查网络"
-				return
-			}
+				if err1 != nil && err2 != nil {
+					t.err = "无法连接在线播客服务，请检查网络"
+					return
+				}
 			t.subs, t.picks = subs, picks
 			t.addHot(hot)
 			t.hotPage = paged{loaded: true, more: more && len(hot) > 0}

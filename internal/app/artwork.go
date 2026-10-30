@@ -8,6 +8,8 @@ import (
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -15,6 +17,7 @@ import (
 	_ "golang.org/x/image/webp"
 
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/source"
 )
 
 // artwork is a cover, decoded and ready to draw, with what the player
@@ -123,6 +126,14 @@ const artRelease = 2 * time.Second
 // loadArt fetches the cover at url, as a bitmap to draw and an image to
 // measure.
 func loadArt(url string) (*ui.Bitmap, image.Image, error) {
+	if strings.HasPrefix(url, "flashmusic://cover/") {
+		idStr := strings.TrimPrefix(url, "flashmusic://cover/")
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			if data := source.GetCoverData(id); len(data) > 0 {
+				return decodeArt(data)
+			}
+		}
+	}
 	b, err := netease.Fetch(url)
 	if err != nil {
 		return nil, nil, err
@@ -143,6 +154,14 @@ func decodeArt(b []byte) (*ui.Bitmap, image.Image, error) {
 }
 
 func fetchImage(url string) (image.Image, error) {
+	if strings.HasPrefix(url, "flashmusic://cover/") {
+		idStr := strings.TrimPrefix(url, "flashmusic://cover/")
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			if data := source.GetCoverData(id); len(data) > 0 {
+				return decodeImage(data)
+			}
+		}
+	}
 	b, err := netease.Fetch(url)
 	if err != nil {
 		return nil, err

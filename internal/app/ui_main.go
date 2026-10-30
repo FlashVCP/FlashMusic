@@ -405,9 +405,9 @@ func (a *app) loadHome() {
 			if err1 != nil && err2 != nil {
 				// Loading the new day's again, what shows stays, to try
 				// once more.
-				if len(a.featured) == 0 && len(a.charts) == 0 {
-					a.homeErr = "无法连接网易云音乐，请检查网络"
-				}
+					if len(a.featured) == 0 && len(a.charts) == 0 {
+						a.homeErr = "无法连接在线音乐服务，请检查网络"
+					}
 				return
 			}
 			a.featured, a.charts, a.daily, a.recPlaylists = featured, charts, daily, rec

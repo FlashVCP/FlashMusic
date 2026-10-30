@@ -2,8 +2,10 @@ package player
 
 import (
 	"errors"
+	"fmt"
 	"math"
 	"math/rand/v2"
+	"os"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -11,6 +13,7 @@ import (
 
 	"netease-music-mygo/internal/lyrics"
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/source"
 )
 
 type RepeatMode int
@@ -601,19 +604,31 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 		}
 	}()
 
-	go func() {
-		lrc, trans, yrc, err := netease.Lyrics(t.ID)
-		var lines []lyrics.Line
-		if err == nil {
-			lines = lyrics.Build(lrc, trans, yrc)
-		}
-		p.post(func() {
-			if gen == p.gen {
-				p.lyrics = lines
-				p.lyricsLoaded = true
+		go func() {
+			if source.IsLocal(t.ID) {
+				if lt, ok := source.GetLocal(t.ID); ok && lt.Lyrics != "" {
+					lines := lyrics.Build(lt.Lyrics, "", "")
+					p.post(func() {
+						if gen == p.gen {
+							p.lyrics = lines
+							p.lyricsLoaded = true
+						}
+					})
+					return
+				}
 			}
-		})
-	}()
+			lrc, trans, yrc, err := netease.Lyrics(t.ID)
+			var lines []lyrics.Line
+			if err == nil {
+				lines = lyrics.Build(lrc, trans, yrc)
+			}
+			p.post(func() {
+				if gen == p.gen {
+					p.lyrics = lines
+					p.lyricsLoaded = true
+				}
+			})
+		}()
 	go func() {
 		level := "exhigh"
 		if p.Quality != nil {
@@ -683,6 +698,34 @@ func (p *Player) loadSkipping(at, skipped int, play bool, from time.Duration) {
 // open opens track t's audio at level: kept in the cache, or else
 // streamed into it, and kept once it has all come in.
 func (p *Player) open(t netease.Track, level string) (*netease.Stream, stream, error) {
+	if source.IsLocal(t.ID) {
+		lt, ok := source.GetLocal(t.ID)
+		if !ok {
+			return nil, nil, fmt.Errorf("local track not found: %d", t.ID)
+		}
+		f, err := os.Open(lt.Path)
+		if err != nil {
+			return nil, nil, err
+		}
+		fi, err := f.Stat()
+		if err != nil {
+			f.Close()
+			return nil, nil, err
+		}
+		dl := opened(f, fi.Size())
+		s, err := openStream(dl, t.Duration)
+		if err != nil {
+			dl.Close()
+			return nil, nil, err
+		}
+		info := &netease.Stream{
+			URL:   lt.Path,
+			Level: lt.Format,
+			Size:  lt.Size,
+		}
+		return info, s, nil
+	}
+
 	dl, info, ok := p.Cache.lookup(t.ID, level)
 	if !ok {
 		var err error
