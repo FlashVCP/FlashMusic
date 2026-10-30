@@ -113,8 +113,79 @@ func TestLocalGrouping(t *testing.T) {
 		t.Fatalf("expected at least 2 artists, got %d", len(artists))
 	}
 
-	folders := source.GroupLocalByFolder()
-	if len(folders) < 2 {
-		t.Fatalf("expected at least 2 folders, got %d", len(folders))
+		folders := source.GroupLocalByFolder()
+		if len(folders) < 2 {
+			t.Fatalf("expected at least 2 folders, got %d", len(folders))
+		}
+	}
+
+func TestCanonicalizeDirs(t *testing.T) {
+	input := []string{
+		`C:\Music`,
+		`C:\Music\Pop`,
+		`C:\Music\Rock\Alternative`,
+		`D:\Audio`,
+		`C:\Music`,
+	}
+	output := source.CanonicalizeDirs(input)
+	if len(output) != 2 {
+		t.Fatalf("expected 2 canonical root dirs, got %d: %+v", len(output), output)
+	}
+	if output[0] != `C:\Music` && output[1] != `C:\Music` {
+		t.Fatalf("expected C:\\Music to be preserved in %+v", output)
+	}
+}
+
+func TestDeduplicateLocal(t *testing.T) {
+	// Two tracks with same artist & title, one FLAC (high quality) and one MP3 (low quality)
+	flacTrack := &source.LocalTrack{
+		ID:       -201,
+		Path:     `D:\Music\FLAC\Jay - 晴天.flac`,
+		Title:    "晴天",
+		Artist:   "周杰伦",
+		Album:    "叶惠美",
+		Duration: 269000,
+		Format:   "flac",
+		Size:     35 << 20,
+	}
+	mp3Track := &source.LocalTrack{
+		ID:       -202,
+		Path:     `D:\Music\Car\周杰伦 - 晴天.mp3`,
+		Title:    "晴天",
+		Artist:   "周杰伦",
+		Album:    "叶惠美",
+		Duration: 270000,
+		Format:   "mp3",
+		Size:     8 << 20,
+	}
+	otherTrack := &source.LocalTrack{
+		ID:       -203,
+		Path:     `D:\Music\Pop\周杰伦 - 七里香.mp3`,
+		Title:    "七里香",
+		Artist:   "周杰伦",
+		Duration: 299000,
+		Format:   "mp3",
+	}
+
+	tracks := []*source.LocalTrack{flacTrack, mp3Track, otherTrack}
+	deduped, dupes := source.DeduplicateLocal(tracks)
+
+	if dupes != 1 {
+		t.Fatalf("expected 1 duplicate merged, got %d", dupes)
+	}
+	if len(deduped) != 2 {
+		t.Fatalf("expected 2 deduped tracks, got %d", len(deduped))
+	}
+
+	// Verify that the FLAC version was chosen over MP3
+	var chosenQingTian *source.LocalTrack
+	for _, tr := range deduped {
+		if tr.Title == "晴天" {
+			chosenQingTian = tr
+			break
+		}
+	}
+	if chosenQingTian == nil || chosenQingTian.Format != "flac" {
+		t.Fatalf("expected FLAC track to be selected for 晴天, got %+v", chosenQingTian)
 	}
 }

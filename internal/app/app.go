@@ -93,6 +93,7 @@ type app struct {
 		localDirs        []string
 		localScanning    bool
 		localErr         string
+		localDupesCount  int
 		localTab         int // 0: 单曲, 1: 专辑, 2: 歌手, 3: 文件夹
 		localFilterType  string
 		localFilterName  string

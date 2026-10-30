@@ -59,16 +59,21 @@ func (a *app) localHeader(c *ui.Context) {
 			ui.Box(c).Size(56, 56).Radius(14).Background(p.accent.Alpha(0.12)).Center().Children(func() {
 				ui.Icon(c, iconFolder).Size(28, 28).TextColor(p.accent)
 			})
-			ui.Column(c).Grow(1).Gap(3).Children(func() {
-				ui.Text(c, "本地音乐").FontSize(28).FontWeight(800).LetterSpacing(-0.5)
-				sub := fmt.Sprintf("%d 首歌曲", len(a.localTracks))
-				if a.localScanning {
-					sub = "正在扫描本地音乐..."
-				} else if len(a.localDirs) > 0 {
-					sub += fmt.Sprintf(" · 已扫描 %d 个文件夹", len(a.localDirs))
-				}
-				ui.Text(c, sub).FontSize(13).TextColor(p.muted)
-			})
+				ui.Column(c).Grow(1).Gap(3).Children(func() {
+					ui.Text(c, "本地音乐").FontSize(28).FontWeight(800).LetterSpacing(-0.5)
+					sub := fmt.Sprintf("%d 首歌曲", len(a.localTracks))
+					if a.localScanning {
+						sub = "正在扫描本地音乐..."
+					} else {
+						if len(a.localDirs) > 0 {
+							sub += fmt.Sprintf(" · 已扫描 %d 个文件夹", len(a.localDirs))
+						}
+						if a.localDupesCount > 0 {
+							sub += fmt.Sprintf(" · 智能去重 %d 首副本", a.localDupesCount)
+						}
+					}
+					ui.Text(c, sub).FontSize(13).TextColor(p.muted)
+				})
 		})
 
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
@@ -361,6 +366,12 @@ func (a *app) scanLocalDirs() {
 		return
 	}
 	a.localScanning = true
+
+	// 1. Canonicalize directory list (prune nested redundant folders)
+	a.localDirs = source.CanonicalizeDirs(a.localDirs)
+	a.settings.LocalDirs = a.localDirs
+	a.settings.save()
+
 	dirs := append([]string(nil), a.localDirs...)
 	if len(dirs) == 0 {
 		if home, err := os.UserHomeDir(); err == nil {
@@ -374,49 +385,57 @@ func (a *app) scanLocalDirs() {
 		}
 	}
 
-		go func() {
-			for _, dir := range dirs {
-				local.ScanDirectory(dir)
-			}
-			var allTracks []netease.Track
-			for _, lt := range source.GetAllLocal() {
-				allTracks = append(allTracks, lt.ToTrack())
-			}
-			albums := source.GroupLocalByAlbum()
-			artists := source.GroupLocalByArtist()
-			folders := source.GroupLocalByFolder()
-			a.post(func() {
-				a.localScanning = false
-				a.localTracks = allTracks
-				a.localAlbums = albums
-				a.localArtists = artists
-				a.localFolders = folders
-				if a.localFilterType != "" {
-					// Refresh active filter
-					switch a.localFilterType {
-					case "album":
-						for _, al := range albums {
-							if al.Name == a.localFilterName {
-								a.localFilterSongs = al.Tracks
-								break
-							}
+	go func() {
+		// Prune any deleted files from registry first
+		source.PruneMissingLocal()
+
+		for _, dir := range dirs {
+			local.ScanDirectory(dir)
+		}
+
+		rawTracks := source.GetAllLocal()
+		dedupedLocal, dupesCount := source.DeduplicateLocal(rawTracks)
+
+		var allTracks []netease.Track
+		for _, lt := range dedupedLocal {
+			allTracks = append(allTracks, lt.ToTrack())
+		}
+		albums := source.GroupLocalByAlbum()
+		artists := source.GroupLocalByArtist()
+		folders := source.GroupLocalByFolder()
+		a.post(func() {
+			a.localScanning = false
+			a.localTracks = allTracks
+			a.localDupesCount = dupesCount
+			a.localAlbums = albums
+			a.localArtists = artists
+			a.localFolders = folders
+			if a.localFilterType != "" {
+				// Refresh active filter
+				switch a.localFilterType {
+				case "album":
+					for _, al := range albums {
+						if al.Name == a.localFilterName {
+							a.localFilterSongs = al.Tracks
+							break
 						}
-					case "artist":
-						for _, ar := range artists {
-							if ar.Name == a.localFilterName {
-								a.localFilterSongs = ar.Tracks
-								break
-							}
+					}
+				case "artist":
+					for _, ar := range artists {
+						if ar.Name == a.localFilterName {
+							a.localFilterSongs = ar.Tracks
+							break
 						}
-					case "folder":
-						for _, f := range folders {
-							if f.Name == a.localFilterName {
-								a.localFilterSongs = f.Tracks
-								break
-							}
+					}
+				case "folder":
+					for _, f := range folders {
+						if f.Name == a.localFilterName {
+							a.localFilterSongs = f.Tracks
+							break
 						}
 					}
 				}
-			})
-		}()
+			}
+		})
+	}()
 }

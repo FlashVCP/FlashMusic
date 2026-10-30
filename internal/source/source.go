@@ -174,6 +174,7 @@ func GroupLocalByAlbum() []*LocalAlbum {
 
 	res := make([]*LocalAlbum, 0, len(albumMap))
 	for _, item := range albumMap {
+		item.Tracks, _ = DeduplicateTracks(item.Tracks)
 		sort.Slice(item.Tracks, func(i, j int) bool {
 			return item.Tracks[i].Name < item.Tracks[j].Name
 		})
@@ -212,6 +213,7 @@ func GroupLocalByArtist() []*LocalArtist {
 
 	res := make([]*LocalArtist, 0, len(artistMap))
 	for _, item := range artistMap {
+		item.Tracks, _ = DeduplicateTracks(item.Tracks)
 		sort.Slice(item.Tracks, func(i, j int) bool {
 			return item.Tracks[i].Name < item.Tracks[j].Name
 		})
@@ -248,6 +250,7 @@ func GroupLocalByFolder() []*LocalFolder {
 
 	res := make([]*LocalFolder, 0, len(folderMap))
 	for _, item := range folderMap {
+		item.Tracks, _ = DeduplicateTracks(item.Tracks)
 		sort.Slice(item.Tracks, func(i, j int) bool {
 			return item.Tracks[i].Name < item.Tracks[j].Name
 		})
