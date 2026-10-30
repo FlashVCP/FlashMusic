@@ -170,7 +170,103 @@ func (p *Player) PlayQueue(tracks []netease.Track, start int) {
 		p.load(0)
 		return
 	}
-	p.load(start)
+		p.load(start)
+	}
+
+// PlayNext inserts t immediately after the current playing track.
+func (p *Player) PlayNext(t netease.Track) {
+	if len(p.queue) == 0 || p.at < 0 {
+		p.PlayQueue([]netease.Track{t}, 0)
+		return
+	}
+
+	existingQueueIdx := -1
+	for i, q := range p.queue {
+		if q.ID == t.ID {
+			existingQueueIdx = i
+			break
+		}
+	}
+
+	targetQueueIdx := existingQueueIdx
+	if targetQueueIdx == -1 {
+		p.queue = append(p.queue, t)
+		targetQueueIdx = len(p.queue) - 1
+	}
+
+	newOrder := make([]int, 0, len(p.order)+1)
+	orderPos := -1
+	for i, qIdx := range p.order {
+		if qIdx == targetQueueIdx {
+			orderPos = i
+			continue
+		}
+		newOrder = append(newOrder, qIdx)
+	}
+
+	if orderPos >= 0 && orderPos < p.at {
+		p.at--
+	}
+
+	insertAt := min(p.at+1, len(newOrder))
+	newOrder = append(newOrder[:insertAt], append([]int{targetQueueIdx}, newOrder[insertAt:]...)...)
+	p.order = newOrder
+	p.sync()
+}
+
+// AppendQueue adds t to the very end of the playback queue.
+func (p *Player) AppendQueue(t netease.Track) {
+	if len(p.queue) == 0 {
+		p.PlayQueue([]netease.Track{t}, 0)
+		return
+	}
+
+	existingQueueIdx := -1
+	for i, q := range p.queue {
+		if q.ID == t.ID {
+			existingQueueIdx = i
+			break
+		}
+	}
+
+	targetQueueIdx := existingQueueIdx
+	if targetQueueIdx == -1 {
+		p.queue = append(p.queue, t)
+		targetQueueIdx = len(p.queue) - 1
+		p.order = append(p.order, targetQueueIdx)
+	} else {
+		orderPos := -1
+		newOrder := make([]int, 0, len(p.order))
+		for i, qIdx := range p.order {
+			if qIdx == targetQueueIdx {
+				orderPos = i
+				continue
+			}
+			newOrder = append(newOrder, qIdx)
+		}
+		if orderPos >= 0 && orderPos < p.at {
+			p.at--
+		}
+		newOrder = append(newOrder, targetQueueIdx)
+		p.order = newOrder
+	}
+	p.sync()
+}
+
+// PlaySingle plays a single track immediately. If it's already in queue, jumps to it.
+func (p *Player) PlaySingle(t netease.Track) {
+	if len(p.queue) == 0 {
+		p.PlayQueue([]netease.Track{t}, 0)
+		return
+	}
+	for i, q := range p.queue {
+		if q.ID == t.ID {
+			p.Jump(i)
+			return
+		}
+	}
+	p.PlayNext(t)
+	p.Next()
 }
 
 // PlayRadio plays tracks in their order, then goes on with those feed

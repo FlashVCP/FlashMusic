@@ -64,9 +64,10 @@ func (a *app) view(c *ui.Context) {
 		})
 		a.nowPlayingLayer(c, npOpen, npSettled)
 	})
-	a.loginDialog(c)
-	a.playlistNameDialog(c)
-	a.deletePlaylistDialog(c)
+		a.loginDialog(c)
+		a.playlistNameDialog(c)
+		a.deletePlaylistDialog(c)
+		a.songPropertiesDialog(c)
 	if a.toast != "" {
 		c.Toast(a.toast)
 		a.toast = ""

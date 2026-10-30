@@ -34,16 +34,42 @@ func (a *app) songItems(tr *netease.Track, pid int64) func(m *ui.Menu) {
 			a.programItems(m, tr)
 			return
 		}
+
+		// 1. Playback controls for online tracks
+		if m.Item("立即播放").Chosen() {
+			a.pl.PlaySingle(*tr)
+		}
+		if m.Item("下一首播放").Chosen() {
+			a.pl.PlayNext(*tr)
+			a.toast = "已添加为下一首播放"
+		}
+		if m.Item("添加到待播清单末尾").Chosen() {
+			a.pl.AppendQueue(*tr)
+			a.toast = "已添加到播放队列末尾"
+		}
+		m.Separator()
+
+		// 2. Favorite / Like
+		liked := a.liked[tr.ID]
+		likeLabel := "收藏到我喜欢的音乐"
+		if liked {
+			likeLabel = "从我喜欢的音乐中移除"
+		}
+		if m.Item(likeLabel).Chosen() {
+			a.toggleLike(tr)
+		}
+		m.Separator()
+
 		if m.Item("复制歌名").Chosen() {
 			copyText(tr.Name)
 		}
 		if m.Item("复制歌名和歌手").Chosen() {
 			copyText(tr.Name + " - " + tr.ArtistNames())
 		}
-		m.Separator()
 		if m.Item("复制链接").Chosen() {
 			copyText(tr.URL())
 		}
+
 		// Its artists' and album's pages, those NetEase has.
 		linked := tr.Album.ID != 0
 		for _, ar := range tr.Artists {
@@ -73,30 +99,77 @@ func (a *app) programItems(m *ui.Menu, tr *netease.Track) {
 	if m.Item("复制链接").Chosen() {
 		copyText(tr.URL())
 	}
-		m.Separator()
-		if m.Item("查看播客").Chosen() {
-			a.openPage(route{page: pagePodcast, id: tr.PodcastID})
-		}
+	m.Separator()
+	if m.Item("查看播客").Chosen() {
+		a.openPage(route{page: pagePodcast, id: tr.PodcastID})
 	}
+}
 
 func (a *app) localSongItems(m *ui.Menu, tr *netease.Track) {
 	lt, _ := source.GetLocal(tr.ID)
+
+	// 1. Playback controls
+	if m.Item("立即播放").Chosen() {
+		a.pl.PlaySingle(*tr)
+	}
+	if m.Item("下一首播放").Chosen() {
+		a.pl.PlayNext(*tr)
+		a.toast = "已添加为下一首播放"
+	}
+	if m.Item("添加到待播清单末尾").Chosen() {
+		a.pl.AppendQueue(*tr)
+		a.toast = "已添加到播放队列末尾"
+	}
+	m.Separator()
+
+	// 2. Favorite / Like
+	liked := a.liked[tr.ID]
+	likeLabel := "收藏到我喜欢的音乐"
+	if liked {
+		likeLabel = "从我喜欢的音乐中移除"
+	}
+	if m.Item(likeLabel).Chosen() {
+		a.toggleLike(tr)
+	}
+	m.Separator()
+
+	// 3. Navigation (Artist / Album)
+	artistName := tr.ArtistNames()
+	if artistName != "" && artistName != "未知歌手" {
+		if m.Item("查看歌手：" + artistName).Chosen() {
+			a.openLocalArtist(artistName)
+		}
+	}
+	if tr.Album.Name != "" && tr.Album.Name != "未知专辑" {
+		if m.Item("查看专辑：" + tr.Album.Name).Chosen() {
+			a.openLocalAlbum(tr.Album.Name)
+		}
+	}
+	m.Separator()
+
+	// 4. File operations & properties
+	if lt != nil {
+		if m.Item("在资源管理器中显示").Chosen() {
+			mygo.Shell.ShowItemInFolder(lt.Path)
+		}
+		if m.Item("歌曲属性与详细信息…").Chosen() {
+			a.showSongProperties(lt)
+		}
+		m.Separator()
+		if m.Item("复制文件路径").Chosen() {
+			copyText(lt.Path)
+			a.toast = "已复制物理文件路径"
+		}
+	}
 	if m.Item("复制歌名").Chosen() {
 		copyText(tr.Name)
 	}
 	if m.Item("复制歌名和歌手").Chosen() {
 		copyText(tr.Name + " - " + tr.ArtistNames())
 	}
-	if lt != nil {
-		m.Separator()
-		if m.Item("复制文件路径").Chosen() {
-			copyText(lt.Path)
-		}
-		if m.Item("在文件夹中显示").Chosen() {
-			mygo.Shell.ShowItemInFolder(lt.Path)
-		}
-	}
 	m.Separator()
+
+	// 5. Safe removal
 	if m.Item("从本地曲库移除 (不删除本地文件)").Chosen() {
 		a.removeLocalTrack(tr.ID)
 	}

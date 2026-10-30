@@ -40,6 +40,20 @@ func (a *app) loadLiked(uid int64) {
 // and then with NetEase, which may refuse: the heart goes back then. Signed
 // out, it asks the listener to sign in.
 func (a *app) toggleLike(tr *netease.Track) {
+	if tr.ID < 0 {
+		if a.liked == nil {
+			a.liked = map[int64]bool{}
+		}
+		liked := !a.liked[tr.ID]
+		a.setLiked(tr.ID, liked)
+		if liked {
+			a.toast = "已添加到我喜欢的音乐"
+		} else {
+			a.toast = "已取消喜欢"
+		}
+		a.redraw()
+		return
+	}
 	if a.profile == nil {
 		a.showMain()
 		a.openLogin()

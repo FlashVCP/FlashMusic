@@ -98,6 +98,8 @@ type app struct {
 		localFilterType  string
 		localFilterName  string
 		localFilterSongs []netease.Track
+		propTrack        *source.LocalTrack
+		propOpen         bool
 	trackList  ui.ListState
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.

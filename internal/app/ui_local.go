@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo"
@@ -525,4 +526,119 @@ func (a *app) clearLocalLibrary() {
 	a.settings.save()
 	a.toast = "已清空本地曲库（电脑中的音乐文件保持完好）"
 	a.redraw()
+}
+
+func (a *app) openLocalArtist(name string) {
+	a.localTab = 2 // 歌手视图
+	a.localFilterType = "artist"
+	a.localFilterName = name
+	for _, ar := range a.localArtists {
+		if ar.Name == name {
+			a.localFilterSongs = ar.Tracks
+			break
+		}
+	}
+	a.open(route{page: pageLocal})
+}
+
+func (a *app) openLocalAlbum(name string) {
+	a.localTab = 1 // 专辑视图
+	a.localFilterType = "album"
+	a.localFilterName = name
+	for _, al := range a.localAlbums {
+		if al.Name == name {
+			a.localFilterSongs = al.Tracks
+			break
+		}
+	}
+	a.open(route{page: pageLocal})
+}
+
+func (a *app) showSongProperties(lt *source.LocalTrack) {
+	a.propTrack = lt
+	a.propOpen = true
+	a.redraw()
+}
+
+func (a *app) songPropertiesDialog(c *ui.Context) {
+	if !a.propOpen || a.propTrack == nil {
+		return
+	}
+	p := a.pal
+	t := a.propTrack
+	ui.DialogBase(c.Key("song-properties"), &a.propOpen, func(backdrop, panel ui.Element) {
+		backdrop.Background(ui.RGBA(0, 0, 0, 0.45))
+		panel.Width(440).Padding(24).Radius(18).Gap(16).
+			Background(p.bg).Border(1, p.hairline).Shadow(0, 24, 60, -12, ui.RGBA(0, 0, 0, 0.4)).
+			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.94}, Exit: &ui.Motion{Scale: 0.96}})
+
+		// Header
+		ui.Row(c).Gap(14).AlignItems(ui.Center).Children(func() {
+			ui.Box(c).Size(40, 40).Radius(10).Background(p.accent.Alpha(0.12)).Center().Children(func() {
+				ui.Icon(c, iconNote).Size(20, 20).TextColor(p.accent)
+			})
+			ui.Column(c).Grow(1).Gap(2).Children(func() {
+				ui.Text(c, "歌曲属性与详细信息").FontSize(17).FontWeight(700)
+				ui.Text(c, "音频规格与物理存储").FontSize(12).TextColor(p.muted)
+			})
+		})
+
+		// Details rows
+		item := func(label, val string) {
+			ui.Row(c).Padding(6, 0).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Text(c, label).FontSize(13).FontWeight(600).TextColor(p.muted).Width(80)
+				ui.Text(c, val).FontSize(13).FontWeight(500).TextColor(p.text).Grow(1).Shrink(1).SingleLine()
+			})
+		}
+
+		ui.Column(c).Padding(8, 12).Radius(10).Background(p.hover).Dividers(1, p.hairline).Children(func() {
+			item("歌曲名称", t.Title)
+			item("音乐家", t.Artist)
+			item("唱片专辑", t.Album)
+			formatStr := strings.ToUpper(t.Format)
+			if t.Format == "flac" {
+				if t.BitDepth >= 24 || t.SampleRate >= 88200 {
+					formatStr += " (Hi-Res 高解析)"
+				} else {
+					formatStr += " (无损 CD 级)"
+				}
+			}
+			item("音频格式", formatStr)
+			if t.SampleRate > 0 {
+				item("采样率", fmt.Sprintf("%d Hz (%.1f kHz)", t.SampleRate, float64(t.SampleRate)/1000.0))
+			}
+			if t.BitDepth > 0 {
+				item("采样位深", fmt.Sprintf("%d bit", t.BitDepth))
+			}
+			if t.Bitrate > 0 {
+				item("比特率", fmt.Sprintf("%d kbps", t.Bitrate))
+			}
+			if t.Duration > 0 {
+				item("音频时长", clock(time.Duration(t.Duration)*time.Millisecond))
+			}
+			if t.Size > 0 {
+				item("文件大小", megabytes(t.Size))
+			}
+		})
+
+		// File Path
+		ui.Column(c).Gap(4).Children(func() {
+			ui.Text(c, "文件物理路径").FontSize(11.5).TextColor(p.faint)
+			ui.Text(c, t.Path).FontSize(12).TextColor(p.muted).MaxLines(2).LineHeight(1.35)
+		})
+
+		// Actions
+		ui.Row(c).Gap(10).Justify(ui.End).Children(func() {
+			if pillButton(c.Key("prop-open-folder"), iconFolder, "在文件夹中显示", p.hover.Over(p.bg), p.text).Clicked() {
+				mygo.Shell.ShowItemInFolder(t.Path)
+			}
+			if pillButton(c.Key("prop-copy-path"), nil, "复制路径", p.hover.Over(p.bg), p.text).Clicked() {
+				copyText(t.Path)
+				a.toast = "已复制物理文件路径"
+			}
+			if pillButton(c.Key("prop-close"), nil, "关闭", p.accent, p.onAccent).Clicked() {
+				a.propOpen = false
+			}
+		})
+	})
 }

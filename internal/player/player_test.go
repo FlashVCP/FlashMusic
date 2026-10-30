@@ -218,8 +218,52 @@ func TestEndRadio(t *testing.T) {
 	if q := p.Queue(); len(q) != 2 || q[0].ID != 1 || q[1].ID != 2 {
 		t.Fatalf("queue %v", q)
 	}
-	p.refill()
-	if asked != 0 {
-		t.Error("asked the radio after leaving it")
+		p.refill()
+		if asked != 0 {
+			t.Error("asked the radio after leaving it")
+		}
+	}
+
+func TestPlayNextAndAppendQueue(t *testing.T) {
+	p := New(func(fn func()) {})
+	t1 := netease.Track{ID: 1, Name: "Song 1"}
+	t2 := netease.Track{ID: 2, Name: "Song 2"}
+	t3 := netease.Track{ID: 3, Name: "Song 3"}
+	t4 := netease.Track{ID: 4, Name: "Song 4"}
+
+	// Start with queue [t1, t2]
+	p.queue = []netease.Track{t1, t2}
+	p.order = []int{0, 1}
+	p.at = 0
+	p.track = &t1
+
+	// PlayNext t3 -> should be inserted at position at+1 (index 1 in order)
+	p.PlayNext(t3)
+	if len(p.order) != 3 {
+		t.Fatalf("expected order length 3, got %d", len(p.order))
+	}
+	nextSong := p.queue[p.order[p.at+1]]
+	if nextSong.ID != t3.ID {
+		t.Fatalf("expected next song to be t3 (ID 3), got ID %d", nextSong.ID)
+	}
+
+	// AppendQueue t4 -> should be at the very end
+	p.AppendQueue(t4)
+	if len(p.order) != 4 {
+		t.Fatalf("expected order length 4, got %d", len(p.order))
+	}
+	lastSong := p.queue[p.order[len(p.order)-1]]
+	if lastSong.ID != t4.ID {
+		t.Fatalf("expected last song to be t4 (ID 4), got ID %d", lastSong.ID)
+	}
+
+	// PlayNext existing t4 -> should move t4 from end to at+1
+	p.PlayNext(t4)
+	if len(p.order) != 4 {
+		t.Fatalf("expected order length to remain 4, got %d", len(p.order))
+	}
+	nextSong2 := p.queue[p.order[p.at+1]]
+	if nextSong2.ID != t4.ID {
+		t.Fatalf("expected t4 to move to next song, got ID %d", nextSong2.ID)
 	}
 }
