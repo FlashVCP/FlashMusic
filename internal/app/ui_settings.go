@@ -158,32 +158,33 @@ func (a *app) settingsView(c *ui.Context) {
 			group("播客", func() { a.captionSettings(row, c) })
 		}
 
-		group("缓存", func() {
-			row("歌曲缓存", "听过的歌曲保存在本机，再次播放无需等待，也不耗流量；"+a.cacheUsage(), func() {
-				labels := make([]string, len(cacheLimits))
-				chosen := cacheLimits[2].label
-				for i, l := range cacheLimits {
-					labels[i] = l.label
-					if l.mb == s.CacheMB {
-						chosen = l.label
-					}
-				}
-				if ui.Select(c.Key("cache"), &chosen, labels).Label("歌曲缓存").Width(150).Changed() {
-					for _, l := range cacheLimits {
-						if l.label == chosen {
-							s.CacheMB = l.mb
+			group("缓存", func() {
+				row("歌曲缓存", "听过的歌曲保存在本机，再次播放无需等待，也不耗流量；"+a.cacheUsage(), func() {
+					labels := make([]string, len(cacheLimits))
+					chosen := cacheLimits[2].label
+					for i, l := range cacheLimits {
+						labels[i] = l.label
+						if l.mb == s.CacheMB {
+							chosen = l.label
 						}
 					}
-					a.changed()
-					a.applyCacheLimit()
-				}
+					if ui.Select(c.Key("cache"), &chosen, labels).Label("歌曲缓存").Width(150).Changed() {
+						for _, l := range cacheLimits {
+							if l.label == chosen {
+								s.CacheMB = l.mb
+							}
+						}
+						a.changed()
+						a.applyCacheLimit()
+					}
+				})
+				row("清除缓存", "删除保存在本机的全部歌曲缓存", func() {
+					if pillButton(c.Key("clear-cache"), iconTrash, "清除缓存", ui.RGBA(255, 60, 60, 0.08), ui.Hex("#ff4d4f")).
+						Border(0.5, ui.RGBA(255, 60, 60, 0.2)).Disabled(a.cacheUsed <= 0).Clicked() {
+						a.clearCache()
+					}
+				})
 			})
-			row("清除缓存", "删除保存在本机的全部歌曲", func() {
-				if ui.Button(c.Key("clear-cache"), "清除").Disabled(a.cacheUsed <= 0).Clicked() {
-					a.clearCache()
-				}
-			})
-		})
 
 		group("外观", func() {
 			row("外观", "", func() {
@@ -214,54 +215,57 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 		})
 
-		group("账号", func() {
-			if a.profile == nil {
-				row("未登录", "登录后，每日推荐与歌单将根据你的口味生成", func() {
-					if ui.PrimaryButton(c.Key("login"), "扫码登录").Clicked() {
-						a.showMain()
-						a.openLogin()
-						a.win.Invalidate()
-					}
-				})
-				return
-			}
-			prof := a.profile
-			ui.Row(c).Padding(12, 16).Gap(12).AlignItems(ui.Center).Children(func() {
-				a.avatar(c, prof.AvatarURL, 36, p.press)
+			group("网易云音乐账号", func() {
+				if a.profile == nil {
+					row("未登录网易云", "登录网易云后可同步每日推荐、歌单与云端红心；未登录不影响本地音乐播放", func() {
+						if pillButton(c.Key("login"), iconUser, "扫码登录", p.accent, p.onAccent).
+							Shadow(0, 4, 12, 0, p.accent.Alpha(0.28)).Clicked() {
+							a.showMain()
+							a.openLogin()
+							a.win.Invalidate()
+						}
+					})
+					return
+				}
+				prof := a.profile
+				ui.Row(c).Padding(12, 16).Gap(12).AlignItems(ui.Center).Children(func() {
+					a.avatar(c, prof.AvatarURL, 36, p.press)
 					ui.Column(c).Grow(1).Gap(2).Children(func() {
 						ui.Text(c, prof.Nickname).FontSize(13.5).FontWeight(600)
 						ui.Text(c, "网易云账号已登录").FontSize(12).TextColor(p.muted)
 					})
-				if ui.Button(c.Key("logout"), "退出登录").Clicked() {
-					a.signOut()
-				}
+					if pillButton(c.Key("logout"), iconSignOut, "退出登录", ui.RGBA(255, 60, 60, 0.08), ui.Hex("#ff4d4f")).
+						Border(0.5, ui.RGBA(255, 60, 60, 0.2)).Clicked() {
+						a.signOut()
+					}
+				})
 			})
-		})
 
-		if a.updates {
-			group("更新", func() {
-				desc := "每天检查一次是否有新版本"
-				if t := lastUpdateCheck(); !t.IsZero() {
-					desc += "；上次检查：" + commentTime(t, time.Now())
-				}
-				row("自动检查更新", desc, func() {
-					on := updateChecks()
-					if ui.Switch(c.Key("update-checks"), &on).Label("自动检查更新").Changed() {
-						setUpdateChecks(on)
+			if a.updates {
+				group("更新", func() {
+					desc := "每天检查一次是否有新版本"
+					if t := lastUpdateCheck(); !t.IsZero() {
+						desc += "；上次检查：" + commentTime(t, time.Now())
 					}
+					row("自动检查更新", desc, func() {
+						on := updateChecks()
+						if ui.Switch(c.Key("update-checks"), &on).Label("自动检查更新").Changed() {
+							setUpdateChecks(on)
+						}
+					})
+					row("自动下载并安装", "在后台下载新版本，下次打开时生效", func() {
+						on := updateDownloads()
+						if ui.Switch(c.Key("update-downloads"), &on).Label("自动下载并安装").Disabled(!updateChecks()).Changed() {
+							setUpdateDownloads(on)
+						}
+					})
+					row("FlashMusic v"+mygo.App.Version(), "", func() {
+						if pillButton(c.Key("check-updates"), iconReload, "检查更新", p.hover, p.text).
+							Border(0.5, p.hairline).Clicked() {
+							checkForUpdates()
+						}
+					})
 				})
-				row("自动下载并安装", "在后台下载新版本，下次打开时生效", func() {
-					on := updateDownloads()
-					if ui.Switch(c.Key("update-downloads"), &on).Label("自动下载并安装").Disabled(!updateChecks()).Changed() {
-						setUpdateDownloads(on)
-					}
-				})
-				row("当前版本 "+mygo.App.Version(), "", func() {
-					if ui.Button(c.Key("check-updates"), "检查更新").Clicked() {
-						checkForUpdates()
-					}
-				})
-			})
-		}
+			}
 	})
 }
