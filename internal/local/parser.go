@@ -30,6 +30,7 @@ func ParseFile(path string) (*source.LocalTrack, error) {
 		return nil, err
 	}
 	track.Size = fi.Size()
+	track.ModTime = fi.ModTime()
 
 	// Default title from filename: "Artist - Title.ext" or "Title.ext"
 	base := strings.TrimSuffix(filepath.Base(path), filepath.Ext(path))

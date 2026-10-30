@@ -29,111 +29,169 @@ func (a *app) localPage(c *ui.Context) {
 		return
 	}
 
-	// Filtered sub-view (Album / Artist / Folder details)
-	if a.localFilterType != "" && len(a.localFilterSongs) > 0 {
-		a.trackRows(c, a.localFilterSongs, true, func(c *ui.Context) {
-			a.localFilteredHeader(c)
-		})
-		return
+		// Filtered sub-view (Album / Artist / Folder details)
+		if a.localFilterType != "" && len(a.localFilterSongs) > 0 {
+			songs := a.localFilterSongs
+			if a.localQuery != "" {
+				songs = source.FilterTracks(songs, a.localQuery)
+			}
+			a.trackRows(c, songs, true, func(c *ui.Context) {
+				a.localFilteredHeader(c)
+			})
+			return
+		}
+
+		header := func(c *ui.Context) {
+			a.localHeader(c)
+		}
+
+		switch a.localTab {
+		case 1:
+			a.localAlbumsView(c, header)
+		case 2:
+			a.localArtistsView(c, header)
+		case 3:
+			a.localFoldersView(c, header)
+		case 4:
+			songs := a.localRecentTracks
+			if len(songs) == 0 && len(a.localTracks) > 0 {
+				songs = a.localTracks
+			}
+			if a.localQuery != "" {
+				songs = source.FilterTracks(songs, a.localQuery)
+			}
+			a.trackRows(c, songs, true, header)
+		default:
+			songs := a.localTracks
+			if a.localQuery != "" {
+				songs = source.FilterTracks(songs, a.localQuery)
+			}
+			a.trackRows(c, songs, true, header)
+		}
 	}
 
-	header := func(c *ui.Context) {
-		a.localHeader(c)
-	}
-
-	switch a.localTab {
-	case 1:
-		a.localAlbumsView(c, header)
-	case 2:
-		a.localArtistsView(c, header)
-	case 3:
-		a.localFoldersView(c, header)
-	default:
-		a.trackRows(c, a.localTracks, true, header)
-	}
-}
-
-func (a *app) localHeader(c *ui.Context) {
-	p := a.pal
-	ui.Column(c).Padding(16, 0, 24, 0).Gap(20).Children(func() {
-		// Row 1: Title and Stats on Left, Segmented Tabs on Right
-		ui.Row(c).AlignItems(ui.Center).Children(func() {
-			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
-				ui.Box(c).Size(52, 52).Radius(14).Background(p.accent.Alpha(0.12)).Center().Children(func() {
-					ui.Icon(c, iconFolder).Size(26, 26).TextColor(p.accent)
-				})
-				ui.Column(c).Gap(3).Children(func() {
-					ui.Text(c, "本地音乐").FontSize(26).FontWeight(800).LetterSpacing(-0.5)
-					sub := fmt.Sprintf("%d 首歌曲", len(a.localTracks))
-					if a.localScanning {
-						sub = "正在扫描本地音乐..."
-					} else {
-						if len(a.localDirs) > 0 {
-							sub += fmt.Sprintf(" · 已扫描 %d 个文件夹", len(a.localDirs))
+	func (a *app) localHeader(c *ui.Context) {
+		p := a.pal
+		ui.Column(c).Padding(16, 0, 24, 0).Gap(20).Children(func() {
+			// Row 1: Title and Stats on Left, Segmented Tabs on Right
+			ui.Row(c).AlignItems(ui.Center).Children(func() {
+				ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
+					ui.Box(c).Size(52, 52).Radius(14).Background(p.accent.Alpha(0.12)).Center().Children(func() {
+						ui.Icon(c, iconFolder).Size(26, 26).TextColor(p.accent)
+					})
+					ui.Column(c).Gap(3).Children(func() {
+						titleText := "本地音乐"
+						switch a.localTab {
+						case 4:
+							titleText = "本地音乐 · 最新添加"
+						case 1:
+							titleText = "本地音乐 · 按专辑"
+						case 2:
+							titleText = "本地音乐 · 按歌手"
+						case 3:
+							titleText = "本地音乐 · 按文件夹"
 						}
-						if a.localDupesCount > 0 {
-							sub += fmt.Sprintf(" · 智能去重 %d 首副本", a.localDupesCount)
+						ui.Text(c, titleText).FontSize(26).FontWeight(800).LetterSpacing(-0.5)
+
+						sub := fmt.Sprintf("%d 首歌曲", len(a.localTracks))
+						if a.localScanning {
+							sub = "正在扫描本地音乐..."
+						} else if a.localQuery != "" {
+							sub = fmt.Sprintf("实时搜索 %q 结果", a.localQuery)
+						} else {
+							if len(a.localDirs) > 0 {
+								sub += fmt.Sprintf(" · 已扫描 %d 个文件夹", len(a.localDirs))
+							}
+							if a.localDupesCount > 0 {
+								sub += fmt.Sprintf(" · 智能去重 %d 首副本", a.localDupesCount)
+							}
 						}
-					}
-					ui.Text(c, sub).FontSize(12.5).TextColor(p.muted)
+						ui.Text(c, sub).FontSize(12.5).TextColor(p.muted)
+					})
 				})
+
+				ui.Spacer(c)
+
+				// Categorization Tabs (Float Right)
+				if len(a.localTracks) > 0 {
+					segmented(c.Key("local-tabs"), &a.localTab, "全部单曲", "按专辑", "按歌手", "按文件夹", "最新添加")
+				}
 			})
 
-			ui.Spacer(c)
-
-			// Categorization Tabs (Float Right)
-			if len(a.localTracks) > 0 {
-				segmented(c.Key("local-tabs"), &a.localTab, "全部单曲", "按专辑", "按歌手", "按文件夹")
-			}
-		})
-
-		// Row 2: Clean Action Toolbar (Primary Capsule + Frosted Action Buttons)
-		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
-			if len(a.localTracks) > 0 {
-				playAll := pillButton(c.Key("play-all"), iconPlay, "播放全部", p.accent, p.onAccent).
-					Shadow(0, 4, 14, 0, p.accent.Alpha(0.32))
-				if playAll.Clicked() {
-					if a.pl.Shuffle() {
-						a.pl.ToggleShuffle()
+			// Row 2: Clean Action Toolbar (Primary Capsule + Frosted Action Buttons + Search Box)
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				if len(a.localTracks) > 0 {
+					playSongs := a.localTracks
+					if a.localTab == 4 && len(a.localRecentTracks) > 0 {
+						playSongs = a.localRecentTracks
 					}
-					a.pl.PlayQueue(a.localTracks, 0)
+					if a.localQuery != "" {
+						playSongs = source.FilterTracks(playSongs, a.localQuery)
+					}
+
+					playAll := pillButton(c.Key("play-all"), iconPlay, "播放全部", p.accent, p.onAccent).
+						Shadow(0, 4, 14, 0, p.accent.Alpha(0.32))
+					if playAll.Clicked() && len(playSongs) > 0 {
+						if a.pl.Shuffle() {
+							a.pl.ToggleShuffle()
+						}
+						a.pl.PlayQueue(playSongs, 0)
+					}
+
+					shuffleAll := pillButton(c.Key("shuffle-all"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).
+						Border(0.5, p.hairline)
+					if shuffleAll.Clicked() && len(playSongs) > 0 {
+						if !a.pl.Shuffle() {
+							a.pl.ToggleShuffle()
+						}
+						a.pl.PlayQueue(playSongs, 0)
+					}
+
+					// Divider
+					ui.Box(c).Width(1).Height(20).Background(p.hairline).MarginX(4)
 				}
 
-				shuffleAll := pillButton(c.Key("shuffle-all"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).
+				addFolder := pillButton(c.Key("add-folder"), iconPlus, "添加文件夹", p.hover.Over(p.bg), p.text).
 					Border(0.5, p.hairline)
-				if shuffleAll.Clicked() {
-					if !a.pl.Shuffle() {
-						a.pl.ToggleShuffle()
+				if addFolder.Clicked() {
+					a.addLocalFolder()
+				}
+
+				if len(a.localDirs) > 0 || len(a.localTracks) > 0 {
+					label := "重新扫描"
+					if a.localScanning {
+						label = "扫描中..."
 					}
-					a.pl.PlayQueue(a.localTracks, 0)
+					rescan := pillButton(c.Key("rescan"), iconReload, label, p.hover.Over(p.bg), p.text).
+						Border(0.5, p.hairline).Disabled(a.localScanning)
+					if rescan.Clicked() {
+						a.scanLocalDirs()
+					}
+
+					clearLib := pillButton(c.Key("clear-lib"), iconTrash, "清空曲库", ui.RGBA(255, 60, 60, 0.08), ui.Hex("#ff4d4f")).
+						Border(0.5, ui.RGBA(255, 60, 60, 0.2))
+					if clearLib.Clicked() {
+						a.clearLocalLibrary()
+					}
 				}
 
-				// Divider
-				ui.Box(c).Width(1).Height(20).Background(p.hairline).MarginX(4)
-			}
+				ui.Spacer(c)
 
-			addFolder := pillButton(c.Key("add-folder"), iconPlus, "添加文件夹", p.hover.Over(p.bg), p.text).
-				Border(0.5, p.hairline)
-			if addFolder.Clicked() {
-				a.addLocalFolder()
-			}
-
-			if len(a.localDirs) > 0 || len(a.localTracks) > 0 {
-				label := "重新扫描"
-				if a.localScanning {
-					label = "扫描中..."
-				}
-				rescan := pillButton(c.Key("rescan"), iconReload, label, p.hover.Over(p.bg), p.text).
-					Border(0.5, p.hairline).Disabled(a.localScanning)
-				if rescan.Clicked() {
-					a.scanLocalDirs()
-				}
-
-				clearLib := pillButton(c.Key("clear-lib"), iconTrash, "清空曲库", ui.RGBA(255, 60, 60, 0.08), ui.Hex("#ff4d4f")).
-					Border(0.5, ui.RGBA(255, 60, 60, 0.2))
-				if clearLib.Clicked() {
-					a.clearLocalLibrary()
-				}
+				// Real-time Local Search Box
+				if len(a.localTracks) > 0 {
+					searchField := ui.Row(c).Height(32).PaddingX(10).Gap(7).Radius(9).AlignItems(ui.Center).Width(240).
+						Background(p.hover).Border(1, p.hairline)
+					searchField.Children(func() {
+						ui.Icon(c, iconSearch).Size(14, 14).TextColor(p.muted)
+						ui.TextInput(c.Key("local-search-input"), &a.localQuery).
+							Placeholder("搜索本地歌曲 / 歌手...").FontSize(12.5).Label("搜索本地音乐").
+							Grow(1).MinWidth(0)
+					if a.localQuery != "" {
+						if iconButton(c.Key("clear-local-search"), iconX, 12, p.muted, "清除").Size(18, 18).Clicked() {
+							a.localQuery = ""
+						}
+					}
+				})
 			}
 		})
 	})
@@ -198,6 +256,16 @@ func (a *app) localAlbumsView(c *ui.Context, header func(c *ui.Context)) {
 		albums = source.GroupLocalByAlbum()
 		a.localAlbums = albums
 	}
+	if a.localQuery != "" {
+		q := strings.ToLower(strings.TrimSpace(a.localQuery))
+		var filtered []*source.LocalAlbum
+		for _, al := range albums {
+			if strings.Contains(strings.ToLower(al.Name), q) || strings.Contains(strings.ToLower(al.Artist), q) {
+				filtered = append(filtered, al)
+			}
+		}
+		albums = filtered
+	}
 
 	ui.Scroll(c.Key("local-albums")).TrackScroll(&a.pageScroll).Grow(1).
 		Padding(top+pageGap, pagePad, bottom+48, pagePad).
@@ -252,6 +320,16 @@ func (a *app) localArtistsView(c *ui.Context, header func(c *ui.Context)) {
 		artists = source.GroupLocalByArtist()
 		a.localArtists = artists
 	}
+	if a.localQuery != "" {
+		q := strings.ToLower(strings.TrimSpace(a.localQuery))
+		var filtered []*source.LocalArtist
+		for _, ar := range artists {
+			if strings.Contains(strings.ToLower(ar.Name), q) {
+				filtered = append(filtered, ar)
+			}
+		}
+		artists = filtered
+	}
 
 	ui.Scroll(c.Key("local-artists")).TrackScroll(&a.pageScroll).Grow(1).
 		Padding(top+pageGap, pagePad, bottom+48, pagePad).
@@ -301,6 +379,16 @@ func (a *app) localFoldersView(c *ui.Context, header func(c *ui.Context)) {
 	if len(folders) == 0 && len(a.localTracks) > 0 {
 		folders = source.GroupLocalByFolder()
 		a.localFolders = folders
+	}
+	if a.localQuery != "" {
+		q := strings.ToLower(strings.TrimSpace(a.localQuery))
+		var filtered []*source.LocalFolder
+		for _, f := range folders {
+			if strings.Contains(strings.ToLower(f.Name), q) || strings.Contains(strings.ToLower(f.Path), q) {
+				filtered = append(filtered, f)
+			}
+		}
+		folders = filtered
 	}
 
 	ui.Scroll(c.Key("local-folders")).TrackScroll(&a.pageScroll).Grow(1).
@@ -430,20 +518,22 @@ func (a *app) scanLocalDirs() {
 		rawTracks := source.GetAllLocal()
 		dedupedLocal, dupesCount := source.DeduplicateLocal(rawTracks)
 
-		var allTracks []netease.Track
-		for _, lt := range dedupedLocal {
-			allTracks = append(allTracks, lt.ToTrack())
-		}
-		albums := source.GroupLocalByAlbum()
-		artists := source.GroupLocalByArtist()
-		folders := source.GroupLocalByFolder()
-		a.post(func() {
-			a.localScanning = false
-			a.localTracks = allTracks
-			a.localDupesCount = dupesCount
-			a.localAlbums = albums
-			a.localArtists = artists
-			a.localFolders = folders
+			var allTracks []netease.Track
+			for _, lt := range dedupedLocal {
+				allTracks = append(allTracks, lt.ToTrack())
+			}
+			recentTracks := source.SortLocalByRecent(dedupedLocal)
+			albums := source.GroupLocalByAlbum()
+			artists := source.GroupLocalByArtist()
+			folders := source.GroupLocalByFolder()
+			a.post(func() {
+				a.localScanning = false
+				a.localTracks = allTracks
+				a.localRecentTracks = recentTracks
+				a.localDupesCount = dupesCount
+				a.localAlbums = albums
+				a.localArtists = artists
+				a.localFolders = folders
 			if a.localFilterType != "" {
 				// Refresh active filter
 				switch a.localFilterType {

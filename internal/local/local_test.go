@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"netease-music-mygo/internal/source"
 )
@@ -234,3 +235,46 @@ func TestDeduplicateLocal(t *testing.T) {
 			t.Fatalf("expected 320k MP3 to win over 128k MP3, got %s", deduped3[0].Path)
 		}
 	}
+
+func TestSortLocalByRecentAndFilter(t *testing.T) {
+	now := time.Now()
+	t1 := &source.LocalTrack{
+		ID:      -301,
+		Path:    `D:\Music\Track1.mp3`,
+		Title:   "Song Alpha",
+		Artist:  "Artist A",
+		ModTime: now.Add(-2 * time.Hour),
+	}
+	t2 := &source.LocalTrack{
+		ID:      -302,
+		Path:    `D:\Music\Track2.mp3`,
+		Title:   "Song Beta",
+		Artist:  "Artist B",
+		ModTime: now.Add(-10 * time.Minute),
+	}
+	t3 := &source.LocalTrack{
+		ID:      -303,
+		Path:    `D:\Music\Track3.mp3`,
+		Title:   "Song Gamma",
+		Artist:  "Artist A",
+		ModTime: now.Add(-1 * time.Minute),
+	}
+
+	recent := source.SortLocalByRecent([]*source.LocalTrack{t1, t2, t3})
+	if len(recent) != 3 {
+		t.Fatalf("expected 3 tracks, got %d", len(recent))
+	}
+	if recent[0].Name != "Song Gamma" || recent[1].Name != "Song Beta" || recent[2].Name != "Song Alpha" {
+		t.Fatalf("expected newest track first, got: %s, %s, %s", recent[0].Name, recent[1].Name, recent[2].Name)
+	}
+
+	filtered := source.FilterTracks(recent, "beta")
+	if len(filtered) != 1 || filtered[0].Name != "Song Beta" {
+		t.Fatalf("expected filter to find Song Beta, got %+v", filtered)
+	}
+
+	filteredArtist := source.FilterTracks(recent, "Artist A")
+	if len(filteredArtist) != 2 {
+		t.Fatalf("expected filter to find 2 tracks for Artist A, got %d", len(filteredArtist))
+	}
+}

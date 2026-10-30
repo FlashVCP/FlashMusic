@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"netease-music-mygo/internal/netease"
 )
@@ -29,6 +30,7 @@ type LocalTrack struct {
 	Duration   int64 // in milliseconds
 	Format     string
 	Size       int64
+	ModTime    time.Time
 	SampleRate int // e.g. 96000, 44100, 48000
 	BitDepth   int // e.g. 24, 16
 	Bitrate    int // in kbps, e.g. 320, 256, 128
@@ -290,5 +292,36 @@ func GroupLocalByFolder() []*LocalFolder {
 	sort.Slice(res, func(i, j int) bool {
 		return res[i].Path < res[j].Path
 	})
+	return res
+}
+
+// FilterTracks filters tracks by query matching title, artist, album, or file path.
+func FilterTracks(tracks []netease.Track, query string) []netease.Track {
+	q := strings.TrimSpace(strings.ToLower(query))
+	if q == "" {
+		return tracks
+	}
+	var res []netease.Track
+	for _, t := range tracks {
+		if strings.Contains(strings.ToLower(t.Name), q) ||
+			strings.Contains(strings.ToLower(t.ArtistNames()), q) ||
+			strings.Contains(strings.ToLower(t.Album.Name), q) {
+			res = append(res, t)
+		}
+	}
+	return res
+}
+
+// SortLocalByRecent sorts deduplicated local tracks by file modification time descending (newest first).
+func SortLocalByRecent(tracks []*LocalTrack) []netease.Track {
+	list := make([]*LocalTrack, len(tracks))
+	copy(list, tracks)
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].ModTime.After(list[j].ModTime)
+	})
+	res := make([]netease.Track, len(list))
+	for i, lt := range list {
+		res[i] = lt.ToTrack()
+	}
 	return res
 }

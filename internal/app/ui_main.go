@@ -1,6 +1,7 @@
 package app
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -184,19 +185,19 @@ func (a *app) sidebar(c *ui.Context) {
 	ui.Column(c).Fill().Padding(top, 14, 14, 14).Gap(4).DragWindow().Children(func() {
 		a.searchField(c)
 
-		ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
+			ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
 				a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
 				a.navItem(c, iconDaily, "每日推荐", route{page: pageDaily})
 				a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
 				a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
 				a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
-				a.navItem(c, iconFolder, "本地音乐", route{page: pageLocal})
-			if a.searched.query != "" {
-				a.navItem(c, iconSearch, "搜索结果", a.searched)
-			}
-			a.myPlaylists(c, "我的歌单", a.mine, true, &a.mineCollapsed)
-			a.myPlaylists(c, "收藏的歌单", a.saved, false, &a.savedCollapsed)
-		})
+				a.localNavGroup(c)
+				if a.searched.query != "" {
+					a.navItem(c, iconSearch, "搜索结果", a.searched)
+				}
+				a.myPlaylists(c, "我的歌单", a.mine, true, &a.mineCollapsed)
+				a.myPlaylists(c, "收藏的歌单", a.saved, false, &a.savedCollapsed)
+			})
 
 		// What plays, as a card at the foot of the sidebar, over who listens.
 		if tr := a.pl.Current(); tr != nil {
@@ -226,8 +227,97 @@ func (a *app) navItem(c *ui.Context, icon *ui.SVG, label string, r route) {
 		ui.Icon(c, icon).Size(17, 17).TextColor(color)
 		ui.Text(c, label).FontSize(13.5).FontWeight(500).TextColor(p.text)
 	})
+		if b.Clicked() {
+			a.open(r)
+		}
+	}
+
+func (a *app) localNavGroup(c *ui.Context) {
+	p := a.pal
+	selectedParent := a.route.page == pageLocal && !a.nowPlaying
+
+	b := ui.ButtonBase(c.Key("nav-local-music")).Height(34).PaddingX(10).Gap(10).Radius(8).
+		AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Role(ui.RoleDisclosure).Label("本地音乐")
+
+	bg := ui.Transparent
+	if selectedParent {
+		bg = p.press
+	} else if b.Hovered() {
+		bg = p.hover
+	}
+	b.Background(b.AnimateColor("bg", bg, ui.Animation{Duration: 120 * time.Millisecond}))
+	color := p.text
+	if selectedParent {
+		color = p.accent
+	}
+
+	b.Children(func() {
+		ui.Icon(c, iconFolder).Size(17, 17).TextColor(color)
+		ui.Text(c, "本地音乐").FontSize(13.5).FontWeight(600).TextColor(p.text).Grow(1)
+		arrow := iconDown
+		if a.localCollapsed {
+			arrow = iconForward
+		}
+		ui.Icon(c, arrow).Size(12, 12).TextColor(p.faint)
+	})
+
 	if b.Clicked() {
-		a.open(r)
+		if a.route.page != pageLocal {
+			a.open(route{page: pageLocal})
+		} else {
+			a.localCollapsed = !a.localCollapsed
+		}
+	}
+
+	if !a.localCollapsed {
+		type subItem struct {
+			tab   int
+			label string
+			icon  *ui.SVG
+		}
+		subItems := []subItem{
+			{0, "全部单曲", iconNote},
+			{4, "最新添加", iconDaily},
+			{2, "按歌手", iconUser},
+			{1, "按专辑", iconNote},
+			{3, "按文件夹", iconFolder},
+		}
+
+		for _, item := range subItems {
+			subKey := fmt.Sprintf("nav-local-tab-%d", item.tab)
+			subSelected := selectedParent && a.localTab == item.tab && a.localFilterType == ""
+			sub := ui.ButtonBase(c.Key(subKey)).Height(28).Padding(0, 10, 0, 26).Gap(8).
+				Radius(7).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label(item.label)
+
+			subBg := ui.Transparent
+			if subSelected {
+				subBg = p.press
+			} else if sub.Hovered() {
+				subBg = p.hover
+			}
+			sub.Background(sub.AnimateColor("bg", subBg, ui.Animation{Duration: 120 * time.Millisecond}))
+			subTextColor := p.muted
+			subIconColor := p.faint
+			if subSelected {
+				subTextColor = p.text
+				subIconColor = p.accent
+			}
+
+			sub.Children(func() {
+				ui.Icon(c, item.icon).Size(13, 13).TextColor(subIconColor)
+				ui.Text(c, item.label).FontSize(12.5).FontWeight(500).TextColor(subTextColor)
+			})
+
+			if sub.Clicked() {
+				a.localTab = item.tab
+				a.localFilterType = ""
+				a.localFilterName = ""
+				a.localFilterSongs = nil
+				if a.route.page != pageLocal {
+					a.open(route{page: pageLocal})
+				}
+			}
+		}
 	}
 }
 
