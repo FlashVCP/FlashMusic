@@ -169,8 +169,121 @@ func (a *app) localSongItems(m *ui.Menu, tr *netease.Track) {
 	}
 	m.Separator()
 
-	// 5. Safe removal
-	if m.Item("从本地曲库移除 (不删除本地文件)").Chosen() {
-		a.removeLocalTrack(tr.ID)
+		// 5. Safe removal
+		if m.Item("从本地曲库移除 (不删除本地文件)").Chosen() {
+			a.removeLocalTrack(tr.ID)
+		}
 	}
+
+func (a *app) songApplePopover(c *ui.Context, anchor ui.Element, tr *netease.Track, pid int64) {
+	pop := popoverColors(a.pal.dark)
+	ui.PopoverBase(c.Key("apple-song-menu"), anchor, &a.songMenuOpen, func(panel ui.Element) {
+		panel.AttachTo(anchor, ui.AnchorBottomEnd, ui.AnchorTopEnd).Margin(0, 0, 4, 0).
+			Width(224).Padding(6).Gap(2).Radius(12).
+			Background(pop.fill).Border(0.5, pop.edge).
+			Shadow(0, 16, 40, -4, ui.RGBA(0, 0, 0, 0.28)).
+			Shadow(0, 2, 8, 0, ui.RGBA(0, 0, 0, 0.12)).
+			Role(ui.RoleMenu).FocusGroup(ui.Vertical).
+			Transition(ui.ElementTransition{Animation: &ui.Snappy, Enter: &ui.Motion{Scale: 0.95, Y: -4}, Exit: &ui.Motion{Scale: 0.97}})
+
+		menuItem := func(icon *ui.SVG, label string, action func()) {
+			b := ui.ButtonBase(c.Key(label)).Role(ui.RoleMenuItem).Label(label).Height(30).PaddingX(8).Gap(9).
+				Radius(7).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
+			if b.Hovered() || b.FocusVisible() {
+				b.Background(a.pal.press)
+			}
+			b.Children(func() {
+				if icon != nil {
+					ui.Icon(c, icon).Size(14, 14).TextColor(a.pal.muted)
+				}
+				ui.Text(c, label).FontSize(13).FontWeight(500).TextColor(a.pal.text).Grow(1).SingleLine()
+			})
+			if b.Clicked() {
+				a.songMenuOpen = false
+				action()
+			}
+		}
+
+		divider := func() {
+			ui.Box(c).Height(0.5).Margin(3, 4).Background(pop.edge)
+		}
+
+		// 1. Playback controls
+		menuItem(iconPlay, "立即播放", func() {
+			a.pl.PlaySingle(*tr)
+		})
+		menuItem(iconNext, "下一首播放", func() {
+			a.pl.PlayNext(*tr)
+			a.toast = "已添加为下一首播放"
+		})
+		menuItem(iconQueue, "添加到待播末尾", func() {
+			a.pl.AppendQueue(*tr)
+			a.toast = "已添加到播放队列末尾"
+		})
+		divider()
+
+		// 2. Favorite
+		liked := a.liked[tr.ID]
+		likeIcon, likeText := iconHeart, "收藏到我喜欢的音乐"
+		if liked {
+			likeIcon, likeText = iconHeartFill, "从我喜欢的音乐中移除"
+		}
+		menuItem(likeIcon, likeText, func() {
+			a.toggleLike(tr)
+		})
+		divider()
+
+		// 3. Navigation
+		if source.IsLocal(tr.ID) {
+			lt, _ := source.GetLocal(tr.ID)
+			ar := tr.ArtistNames()
+			if ar != "" && ar != "未知歌手" {
+				menuItem(iconUser, "查看歌手："+ar, func() {
+					a.openLocalArtist(ar)
+				})
+			}
+			if tr.Album.Name != "" && tr.Album.Name != "未知专辑" {
+				menuItem(iconNote, "查看专辑："+tr.Album.Name, func() {
+					a.openLocalAlbum(tr.Album.Name)
+				})
+			}
+			divider()
+
+			if lt != nil {
+				menuItem(iconFolder, "在资源管理器中显示", func() {
+					mygo.Shell.ShowItemInFolder(lt.Path)
+				})
+				menuItem(iconNote, "歌曲属性与详细信息…", func() {
+					a.showSongProperties(lt)
+				})
+				divider()
+				menuItem(iconReload, "复制文件路径", func() {
+					copyText(lt.Path)
+					a.toast = "已复制物理文件路径"
+				})
+			}
+			menuItem(nil, "复制歌名", func() { copyText(tr.Name) })
+			menuItem(nil, "复制歌名和歌手", func() { copyText(tr.Name + " - " + tr.ArtistNames()) })
+			divider()
+
+			menuItem(iconTrash, "从曲库移除 (不删文件)", func() {
+				a.removeLocalTrack(tr.ID)
+			})
+		} else {
+			// Online track items
+			for _, ar := range tr.Artists {
+				if ar.ID != 0 {
+					arID, arName := ar.ID, ar.Name
+					menuItem(iconUser, "查看歌手："+arName, func() { a.openArtist(arID) })
+				}
+			}
+			if tr.Album.ID != 0 {
+				alID, alName := tr.Album.ID, tr.Album.Name
+				menuItem(iconNote, "查看专辑："+alName, func() { a.openPage(route{page: pageAlbum, id: alID}) })
+			}
+			divider()
+			menuItem(nil, "复制歌名", func() { copyText(tr.Name) })
+			menuItem(nil, "复制链接", func() { copyText(tr.URL()) })
+		}
+	})
 }

@@ -395,75 +395,91 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 		i--
 		tr := &tracks[i]
 		playing := cur != nil && cur.ID == tr.ID
-		row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name).
-			ContextMenu(a.songItems(tr, pid))
-		hovered := row.Hovered()
-		bg := ui.Transparent
-		switch {
-		case playing:
-			bg = p.accent.Alpha(0.09)
-		case hovered:
-			bg = p.hover
-		}
-		row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
-		if !tr.Playable() {
-			row.Opacity(0.42)
-		}
-		row.Children(func() {
-			ui.Box(c).Width(26).Center().Children(func() {
-				switch {
-				case playing:
-					a.nowPlayingBars(c)
-				case hovered && tr.Playable():
-					ui.Icon(c, iconPlay).Size(13, 13).TextColor(p.text)
-				default:
-					ui.Textf(c, "%d", i+1).FontSize(13).FontFeatures("tnum").TextColor(p.faint)
-				}
-			})
-			if covers {
-				a.cover(c, tr.Album.PicURL, 96, 38, 6)
+			row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name)
+			if row.RightClicked() {
+				a.songMenuTrack = tr
+				a.songMenuOpen = true
 			}
-			ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
-				name := p.text
-				if playing {
-					name = p.accent
-				}
-				spans := []ui.Span{{Text: tr.Name, Weight: 500, Color: name}}
-				if len(tr.Alias) > 0 {
-					spans = append(spans, ui.Span{Text: "（" + tr.Alias[0] + "）", Color: p.faint})
-				}
-				ui.RichText(c, spans...).FontSize(14).SingleLine()
-				ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
-					if !tr.Playable() {
-						ui.Text(c, "VIP").FontSize(9).FontWeight(800).TextColor(p.accent).Padding(0, 4).Radius(3).Border(1, p.accent.Alpha(0.6))
-					}
-					a.artistLinks(c, tr, p.muted, p.text).FontSize(12.5).SingleLine().Shrink(1).MinWidth(0)
-					if tr.Reason != "" {
-						ui.Text(c, tr.Reason).FontSize(10.5).FontWeight(600).TextColor(p.accent).Padding(1, 6).Radius(999).Background(p.accent.Alpha(0.1)).SingleLine()
+			hovered := row.Hovered()
+			bg := ui.Transparent
+			switch {
+			case playing:
+				bg = p.accent.Alpha(0.09)
+			case hovered:
+				bg = p.hover
+			}
+			row.Background(row.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
+			if !tr.Playable() {
+				row.Opacity(0.42)
+			}
+			row.Children(func() {
+				ui.Box(c).Width(26).Center().Children(func() {
+					switch {
+					case playing:
+						a.nowPlayingBars(c)
+					case hovered && tr.Playable():
+						ui.Icon(c, iconPlay).Size(13, 13).TextColor(p.text)
+					default:
+						ui.Textf(c, "%d", i+1).FontSize(13).FontFeatures("tnum").TextColor(p.faint)
 					}
 				})
-			})
-			if wide {
-				album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(p.muted).SingleLine()
-				album.Children(func() {
-					if tr.Album.ID == 0 {
-						ui.Text(c, tr.Album.Name)
-					} else {
-						a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, id: tr.Album.ID})
+				if covers {
+					a.cover(c, tr.Album.PicURL, 96, 38, 6)
+				}
+				ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
+					name := p.text
+					if playing {
+						name = p.accent
+					}
+					spans := []ui.Span{{Text: tr.Name, Weight: 500, Color: name}}
+					if len(tr.Alias) > 0 {
+						spans = append(spans, ui.Span{Text: "（" + tr.Alias[0] + "）", Color: p.faint})
+					}
+					ui.RichText(c, spans...).FontSize(14).SingleLine()
+					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+						if !tr.Playable() {
+							ui.Text(c, "VIP").FontSize(9).FontWeight(800).TextColor(p.accent).Padding(0, 4).Radius(3).Border(1, p.accent.Alpha(0.6))
+						}
+						a.artistLinks(c, tr, p.muted, p.text).FontSize(12.5).SingleLine().Shrink(1).MinWidth(0)
+						if tr.Reason != "" {
+							ui.Text(c, tr.Reason).FontSize(10.5).FontWeight(600).TextColor(p.accent).Padding(1, 6).Radius(999).Background(p.accent.Alpha(0.1)).SingleLine()
+						}
+					})
+				})
+				if wide {
+					album := ui.RichText(c).Grow(2).Basis(0).MinWidth(0).FontSize(12.5).TextColor(p.muted).SingleLine()
+					album.Children(func() {
+						if tr.Album.ID == 0 {
+							ui.Text(c, tr.Album.Name)
+						} else {
+							a.link(c.Key("album"), tr.Album.Name, p.muted, p.text, route{page: pageAlbum, id: tr.Album.ID})
+						}
+					})
+				}
+				// A liked song's heart shows; the others' as the pointer is on them.
+				ui.Box(c).Size(32, 32).Center().Children(func() {
+					if a.liked[tr.ID] || hovered {
+						a.likeButton(c.Key("like"), tr, 15, p.muted)
 					}
 				})
-			}
-			// A liked song's heart shows; the others' as the pointer is on them.
-			ui.Box(c).Size(32, 32).Center().Children(func() {
-				if a.liked[tr.ID] || hovered {
-					a.likeButton(c.Key("like"), tr, 15, p.muted)
-				}
+				// Three dots "···" more button
+				ui.Box(c).Size(32, 32).Center().Children(func() {
+					if hovered || (a.songMenuOpen && a.songMenuTrack != nil && a.songMenuTrack.ID == tr.ID) {
+						moreBtn := iconButton(c.Key("row-more"), iconMore, 16, p.muted, "更多")
+						if moreBtn.Clicked() {
+							a.songMenuTrack = tr
+							a.songMenuOpen = !a.songMenuOpen
+						}
+					}
+				})
+				ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
 			})
-			ui.Text(c, clock(tr.Length())).FontSize(12.5).FontFeatures("tnum").TextColor(p.faint).Width(44).TextAlign(ui.End)
-		})
-		if row.Clicked() && tr.Playable() {
-			a.pl.PlayQueue(tracks, i)
-		}
+			if a.songMenuOpen && a.songMenuTrack != nil && a.songMenuTrack.ID == tr.ID {
+				a.songApplePopover(c, row, tr, pid)
+			}
+			if row.Clicked() && tr.Playable() {
+				a.pl.PlayQueue(tracks, i)
+			}
 	}).Grow(1).Padding(top+pageGap, pagePad-12, bottom+32, pagePad-12).ScrollbarInsets(top, 0, bottom, 0)
 }
 
