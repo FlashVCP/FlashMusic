@@ -204,6 +204,7 @@ func (a *app) localFilteredHeader(c *ui.Context) {
 			a.localFilterType = ""
 			a.localFilterName = ""
 			a.localFilterSongs = nil
+			a.localQuery = ""
 			return
 		}
 
@@ -228,23 +229,48 @@ func (a *app) localFilteredHeader(c *ui.Context) {
 			}
 			ui.Column(c).Grow(1).Gap(4).Children(func() {
 				ui.Text(c, typeLabel+" · "+a.localFilterName).FontSize(24).FontWeight(700).LetterSpacing(-0.4)
-				ui.Textf(c, "共 %d 首歌曲", len(a.localFilterSongs)).FontSize(13).TextColor(p.muted)
+				subText := fmt.Sprintf("共 %d 首歌曲", len(a.localFilterSongs))
+				if a.localQuery != "" {
+					matchedCount := len(source.FilterTracks(a.localFilterSongs, a.localQuery))
+					subText = fmt.Sprintf("过滤显示 %d 首（该%s共 %d 首）· 关键词 %q", matchedCount, typeLabel, len(a.localFilterSongs), a.localQuery)
+				}
+				ui.Text(c, subText).FontSize(13).TextColor(p.muted)
 			})
 		})
 
-		ui.Row(c).Gap(10).Margin(4, 0, 0, 0).Children(func() {
-			if pillButton(c.Key("filter-play"), iconPlay, "播放这组歌曲", p.accent, p.onAccent).Clicked() {
+		ui.Row(c).Gap(10).Margin(4, 0, 0, 0).AlignItems(ui.Center).Children(func() {
+			playSongs := a.localFilterSongs
+			if a.localQuery != "" {
+				playSongs = source.FilterTracks(playSongs, a.localQuery)
+			}
+			if pillButton(c.Key("filter-play"), iconPlay, "播放这组歌曲", p.accent, p.onAccent).Clicked() && len(playSongs) > 0 {
 				if a.pl.Shuffle() {
 					a.pl.ToggleShuffle()
 				}
-				a.pl.PlayQueue(a.localFilterSongs, 0)
+				a.pl.PlayQueue(playSongs, 0)
 			}
-			if pillButton(c.Key("filter-shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
+			if pillButton(c.Key("filter-shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() && len(playSongs) > 0 {
 				if !a.pl.Shuffle() {
 					a.pl.ToggleShuffle()
 				}
-				a.pl.PlayQueue(a.localFilterSongs, 0)
+				a.pl.PlayQueue(playSongs, 0)
 			}
+
+			ui.Spacer(c)
+
+			// Real-time Search Box inside filtered detail view
+			searchField := ui.Row(c).Height(32).PaddingX(10).Gap(7).Radius(9).AlignItems(ui.Center).Width(240).
+				Background(p.hover).Border(1, p.hairline)
+			searchField.Children(func() {
+				ui.Icon(c, iconSearch).Size(14, 14).TextColor(p.muted)
+				ui.TextInput(c.Key("local-filtered-search"), &a.localQuery).
+					Placeholder("在此列表中过滤...").FontSize(12.5).Label("过滤")
+				if a.localQuery != "" {
+					if iconButton(c.Key("clear-filtered-search"), iconX, 12, p.muted, "清除").Size(18, 18).Clicked() {
+						a.localQuery = ""
+					}
+				}
+			})
 		})
 	})
 }
@@ -305,12 +331,13 @@ func (a *app) localAlbumCard(c *ui.Context, al *source.LocalAlbum) {
 		}
 		ui.Textf(c, "%s · %d 首", artist, len(al.Tracks)).FontSize(12).TextColor(p.muted).SingleLine().Margin(-6, 0, 0, 0)
 	})
-	if card.Clicked() {
-		a.localFilterType = "album"
-		a.localFilterName = al.Name
-		a.localFilterSongs = al.Tracks
-		a.pageScroll = ui.ScrollState{}
-	}
+		if card.Clicked() {
+			a.localFilterType = "album"
+			a.localFilterName = al.Name
+			a.localFilterSongs = al.Tracks
+			a.localQuery = ""
+			a.pageScroll = ui.ScrollState{}
+		}
 }
 
 func (a *app) localArtistsView(c *ui.Context, header func(c *ui.Context)) {
@@ -365,12 +392,13 @@ func (a *app) localArtistCard(c *ui.Context, ar *source.LocalArtist) {
 		ui.Text(c, ar.Name).FontSize(13.5).FontWeight(600).SingleLine().AlignSelf(ui.Center)
 		ui.Textf(c, "%d 首歌曲", len(ar.Tracks)).FontSize(12).TextColor(p.muted).SingleLine().AlignSelf(ui.Center).Margin(-6, 0, 0, 0)
 	})
-	if card.Clicked() {
-		a.localFilterType = "artist"
-		a.localFilterName = ar.Name
-		a.localFilterSongs = ar.Tracks
-		a.pageScroll = ui.ScrollState{}
-	}
+		if card.Clicked() {
+			a.localFilterType = "artist"
+			a.localFilterName = ar.Name
+			a.localFilterSongs = ar.Tracks
+			a.localQuery = ""
+			a.pageScroll = ui.ScrollState{}
+		}
 }
 
 func (a *app) localFoldersView(c *ui.Context, header func(c *ui.Context)) {
@@ -434,12 +462,13 @@ func (a *app) localFolderCard(c *ui.Context, f *source.LocalFolder) {
 			ui.Textf(c, "包含 %d 首歌曲", len(f.Tracks)).FontSize(12).TextColor(p.muted)
 		})
 	})
-	if card.Clicked() {
-		a.localFilterType = "folder"
-		a.localFilterName = f.Name
-		a.localFilterSongs = f.Tracks
-		a.pageScroll = ui.ScrollState{}
-	}
+		if card.Clicked() {
+			a.localFilterType = "folder"
+			a.localFilterName = f.Name
+			a.localFilterSongs = f.Tracks
+			a.localQuery = ""
+			a.pageScroll = ui.ScrollState{}
+		}
 }
 
 func (a *app) localEmpty(c *ui.Context) {
@@ -643,6 +672,7 @@ func (a *app) openLocalArtist(name string) {
 	a.localTab = 2 // 歌手视图
 	a.localFilterType = "artist"
 	a.localFilterName = name
+	a.localQuery = ""
 	for _, ar := range a.localArtists {
 		if ar.Name == name {
 			a.localFilterSongs = ar.Tracks
@@ -656,6 +686,7 @@ func (a *app) openLocalAlbum(name string) {
 	a.localTab = 1 // 专辑视图
 	a.localFilterType = "album"
 	a.localFilterName = name
+	a.localQuery = ""
 	for _, al := range a.localAlbums {
 		if al.Name == name {
 			a.localFilterSongs = al.Tracks
