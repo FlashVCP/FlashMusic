@@ -99,6 +99,34 @@ func GetLocal(id int64) (*LocalTrack, bool) {
 	return t, ok
 }
 
+// RemoveLocal removes a single track from the registry by its negative ID.
+func RemoveLocal(id int64) bool {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	if _, ok := registry[id]; ok {
+		delete(registry, id)
+		return true
+	}
+	return false
+}
+
+// RemoveLocalByFolder removes all tracks belonging to dir (or its subdirectories) from registry.
+func RemoveLocalByFolder(dir string) int {
+	registryMu.Lock()
+	defer registryMu.Unlock()
+	cleanDir := filepath.Clean(dir)
+	var removed int
+	for id, track := range registry {
+		trackDir := filepath.Clean(filepath.Dir(track.Path))
+		rel, err := filepath.Rel(cleanDir, trackDir)
+		if err == nil && !strings.HasPrefix(rel, "..") {
+			delete(registry, id)
+			removed++
+		}
+	}
+	return removed
+}
+
 // GetCoverData retrieves the embedded cover image bytes for a local track, if any.
 func GetCoverData(id int64) []byte {
 	registryMu.RLock()

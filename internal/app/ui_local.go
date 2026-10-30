@@ -91,19 +91,22 @@ func (a *app) localHeader(c *ui.Context) {
 					a.pl.PlayQueue(a.localTracks, 0)
 				}
 			}
-			if pillButton(c.Key("add-folder"), iconPlus, "添加文件夹", p.hover.Over(p.bg), p.text).Clicked() {
-				a.addLocalFolder()
-			}
-			if len(a.localDirs) > 0 {
-				label := "重新扫描"
-				if a.localScanning {
-					label = "扫描中..."
+				if pillButton(c.Key("add-folder"), iconPlus, "添加文件夹", p.hover.Over(p.bg), p.text).Clicked() {
+					a.addLocalFolder()
 				}
-				if pillButton(c.Key("rescan"), iconReload, label, p.hover.Over(p.bg), p.text).Disabled(a.localScanning).Clicked() {
-					a.scanLocalDirs()
+				if len(a.localDirs) > 0 || len(a.localTracks) > 0 {
+					label := "重新扫描"
+					if a.localScanning {
+						label = "扫描中..."
+					}
+					if pillButton(c.Key("rescan"), iconReload, label, p.hover.Over(p.bg), p.text).Disabled(a.localScanning).Clicked() {
+						a.scanLocalDirs()
+					}
+					if pillButton(c.Key("clear-lib"), iconTrash, "清空曲库", p.hover.Over(p.bg), p.text).Clicked() {
+						a.clearLocalLibrary()
+					}
 				}
-			}
-		})
+			})
 
 		// Categorization tabs
 		if len(a.localTracks) > 0 {
@@ -295,7 +298,16 @@ func (a *app) localFoldersView(c *ui.Context, header func(c *ui.Context)) {
 
 func (a *app) localFolderCard(c *ui.Context, f *source.LocalFolder) {
 	p := a.pal
-	card := ui.ButtonBase(c.Key(f.Path)).Padding(14).Radius(12).FocusRing(false).Label(f.Name)
+	card := ui.ButtonBase(c.Key(f.Path)).Padding(14).Radius(12).FocusRing(false).Label(f.Name).
+		ContextMenu(func(m *ui.Menu) {
+			if m.Item("在资源管理器中打开").Chosen() {
+				mygo.Shell.OpenPath(f.Path)
+			}
+			m.Separator()
+			if m.Item("从曲库移除此文件夹 (保留本地文件)").Chosen() {
+				a.removeLocalFolder(f.Path)
+			}
+		})
 	hovered := card.Hovered()
 	bg := p.hover
 	if hovered {
@@ -434,8 +446,83 @@ func (a *app) scanLocalDirs() {
 							break
 						}
 					}
+					}
 				}
+			})
+		}()
+	}
+
+func (a *app) removeLocalTrack(id int64) {
+	source.RemoveLocal(id)
+	for i, t := range a.localTracks {
+		if t.ID == id {
+			a.localTracks = append(a.localTracks[:i], a.localTracks[i+1:]...)
+			break
+		}
+	}
+	if a.localFilterType != "" {
+		for i, t := range a.localFilterSongs {
+			if t.ID == id {
+				a.localFilterSongs = append(a.localFilterSongs[:i], a.localFilterSongs[i+1:]...)
+				break
 			}
-		})
-	}()
+		}
+	}
+	a.localAlbums = source.GroupLocalByAlbum()
+	a.localArtists = source.GroupLocalByArtist()
+	a.localFolders = source.GroupLocalByFolder()
+	a.toast = "已从本地曲库移除（本地文件未受影响）"
+	a.redraw()
+}
+
+func (a *app) removeLocalFolder(dir string) {
+	cleanDir := filepath.Clean(dir)
+	var newDirs []string
+	for _, d := range a.localDirs {
+		if filepath.Clean(d) != cleanDir {
+			newDirs = append(newDirs, d)
+		}
+	}
+	a.localDirs = newDirs
+	a.settings.LocalDirs = newDirs
+	a.settings.save()
+
+	source.RemoveLocalByFolder(cleanDir)
+
+	rawTracks := source.GetAllLocal()
+	dedupedLocal, dupes := source.DeduplicateLocal(rawTracks)
+	var allTracks []netease.Track
+	for _, lt := range dedupedLocal {
+		allTracks = append(allTracks, lt.ToTrack())
+	}
+	a.localTracks = allTracks
+	a.localDupesCount = dupes
+	a.localAlbums = source.GroupLocalByAlbum()
+	a.localArtists = source.GroupLocalByArtist()
+	a.localFolders = source.GroupLocalByFolder()
+
+	if a.localFilterType == "folder" && a.localFilterName == filepath.Base(cleanDir) {
+		a.localFilterType = ""
+		a.localFilterName = ""
+		a.localFilterSongs = nil
+	}
+	a.toast = "已从曲库移除该文件夹（本地文件保持完好）"
+	a.redraw()
+}
+
+func (a *app) clearLocalLibrary() {
+	source.ClearLocalRegistry()
+	a.localTracks = nil
+	a.localAlbums = nil
+	a.localArtists = nil
+	a.localFolders = nil
+	a.localDirs = nil
+	a.localDupesCount = 0
+	a.localFilterType = ""
+	a.localFilterName = ""
+	a.localFilterSongs = nil
+	a.settings.LocalDirs = nil
+	a.settings.save()
+	a.toast = "已清空本地曲库（电脑中的音乐文件保持完好）"
+	a.redraw()
 }

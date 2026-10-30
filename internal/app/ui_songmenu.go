@@ -6,6 +6,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/source"
 )
 
 // copyText puts text on the clipboard; tests replace it.
@@ -25,6 +26,10 @@ func (a *app) songMenu(c *ui.Context, tr *netease.Track, size float32, color ui.
 // it is listed in, if set.
 func (a *app) songItems(tr *netease.Track, pid int64) func(m *ui.Menu) {
 	return func(m *ui.Menu) {
+		if source.IsLocal(tr.ID) {
+			a.localSongItems(m, tr)
+			return
+		}
 		if tr.ProgramID != 0 {
 			a.programItems(m, tr)
 			return
@@ -68,8 +73,31 @@ func (a *app) programItems(m *ui.Menu, tr *netease.Track) {
 	if m.Item("复制链接").Chosen() {
 		copyText(tr.URL())
 	}
+		m.Separator()
+		if m.Item("查看播客").Chosen() {
+			a.openPage(route{page: pagePodcast, id: tr.PodcastID})
+		}
+	}
+
+func (a *app) localSongItems(m *ui.Menu, tr *netease.Track) {
+	lt, _ := source.GetLocal(tr.ID)
+	if m.Item("复制歌名").Chosen() {
+		copyText(tr.Name)
+	}
+	if m.Item("复制歌名和歌手").Chosen() {
+		copyText(tr.Name + " - " + tr.ArtistNames())
+	}
+	if lt != nil {
+		m.Separator()
+		if m.Item("复制文件路径").Chosen() {
+			copyText(lt.Path)
+		}
+		if m.Item("在文件夹中显示").Chosen() {
+			mygo.Shell.ShowItemInFolder(lt.Path)
+		}
+	}
 	m.Separator()
-	if m.Item("查看播客").Chosen() {
-		a.openPage(route{page: pagePodcast, id: tr.PodcastID})
+	if m.Item("从本地曲库移除 (不删除本地文件)").Chosen() {
+		a.removeLocalTrack(tr.ID)
 	}
 }
