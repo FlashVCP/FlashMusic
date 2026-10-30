@@ -9,6 +9,7 @@ import (
 
 	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/player"
+	"netease-music-mygo/internal/source"
 )
 
 type pageKind int
@@ -86,6 +87,9 @@ type app struct {
 		podcastTab *podcastTab // the podcasts tab's lists
 
 		localTracks      []netease.Track
+		localAlbums      []*source.LocalAlbum
+		localArtists     []*source.LocalArtist
+		localFolders     []*source.LocalFolder
 		localDirs        []string
 		localScanning    bool
 		localErr         string

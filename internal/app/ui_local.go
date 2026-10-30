@@ -163,7 +163,11 @@ func (a *app) localFilteredHeader(c *ui.Context) {
 
 func (a *app) localAlbumsView(c *ui.Context, header func(c *ui.Context)) {
 	top, bottom := a.insets(c)
-	albums := source.GroupLocalByAlbum()
+	albums := a.localAlbums
+	if len(albums) == 0 && len(a.localTracks) > 0 {
+		albums = source.GroupLocalByAlbum()
+		a.localAlbums = albums
+	}
 
 	ui.Scroll(c.Key("local-albums")).TrackScroll(&a.pageScroll).Grow(1).
 		Padding(top+pageGap, pagePad, bottom+48, pagePad).
@@ -213,7 +217,11 @@ func (a *app) localAlbumCard(c *ui.Context, al *source.LocalAlbum) {
 
 func (a *app) localArtistsView(c *ui.Context, header func(c *ui.Context)) {
 	top, bottom := a.insets(c)
-	artists := source.GroupLocalByArtist()
+	artists := a.localArtists
+	if len(artists) == 0 && len(a.localTracks) > 0 {
+		artists = source.GroupLocalByArtist()
+		a.localArtists = artists
+	}
 
 	ui.Scroll(c.Key("local-artists")).TrackScroll(&a.pageScroll).Grow(1).
 		Padding(top+pageGap, pagePad, bottom+48, pagePad).
@@ -259,7 +267,11 @@ func (a *app) localArtistCard(c *ui.Context, ar *source.LocalArtist) {
 
 func (a *app) localFoldersView(c *ui.Context, header func(c *ui.Context)) {
 	top, bottom := a.insets(c)
-	folders := source.GroupLocalByFolder()
+	folders := a.localFolders
+	if len(folders) == 0 && len(a.localTracks) > 0 {
+		folders = source.GroupLocalByFolder()
+		a.localFolders = folders
+	}
 
 	ui.Scroll(c.Key("local-folders")).TrackScroll(&a.pageScroll).Grow(1).
 		Padding(top+pageGap, pagePad, bottom+48, pagePad).
@@ -278,7 +290,7 @@ func (a *app) localFoldersView(c *ui.Context, header func(c *ui.Context)) {
 
 func (a *app) localFolderCard(c *ui.Context, f *source.LocalFolder) {
 	p := a.pal
-	card := ui.ButtonBase(c.Key(f.Path)).Padding(14).Radius(12).Background(p.hover).FocusRing(false).Label(f.Name)
+	card := ui.ButtonBase(c.Key(f.Path)).Padding(14).Radius(12).FocusRing(false).Label(f.Name)
 	hovered := card.Hovered()
 	bg := p.hover
 	if hovered {
@@ -362,46 +374,49 @@ func (a *app) scanLocalDirs() {
 		}
 	}
 
-	go func() {
-		var allTracks []netease.Track
-		for _, dir := range dirs {
-			tracks, err := local.ScanDirectory(dir)
-			if err != nil {
-				continue
+		go func() {
+			for _, dir := range dirs {
+				local.ScanDirectory(dir)
 			}
-			for _, lt := range tracks {
+			var allTracks []netease.Track
+			for _, lt := range source.GetAllLocal() {
 				allTracks = append(allTracks, lt.ToTrack())
 			}
-		}
-		a.post(func() {
-			a.localScanning = false
-			a.localTracks = allTracks
-			if a.localFilterType != "" {
-				// Refresh active filter
-				switch a.localFilterType {
-				case "album":
-					for _, al := range source.GroupLocalByAlbum() {
-						if al.Name == a.localFilterName {
-							a.localFilterSongs = al.Tracks
-							break
+			albums := source.GroupLocalByAlbum()
+			artists := source.GroupLocalByArtist()
+			folders := source.GroupLocalByFolder()
+			a.post(func() {
+				a.localScanning = false
+				a.localTracks = allTracks
+				a.localAlbums = albums
+				a.localArtists = artists
+				a.localFolders = folders
+				if a.localFilterType != "" {
+					// Refresh active filter
+					switch a.localFilterType {
+					case "album":
+						for _, al := range albums {
+							if al.Name == a.localFilterName {
+								a.localFilterSongs = al.Tracks
+								break
+							}
 						}
-					}
-				case "artist":
-					for _, ar := range source.GroupLocalByArtist() {
-						if ar.Name == a.localFilterName {
-							a.localFilterSongs = ar.Tracks
-							break
+					case "artist":
+						for _, ar := range artists {
+							if ar.Name == a.localFilterName {
+								a.localFilterSongs = ar.Tracks
+								break
+							}
 						}
-					}
-				case "folder":
-					for _, f := range source.GroupLocalByFolder() {
-						if f.Name == a.localFilterName {
-							a.localFilterSongs = f.Tracks
-							break
+					case "folder":
+						for _, f := range folders {
+							if f.Name == a.localFilterName {
+								a.localFilterSongs = f.Tracks
+								break
+							}
 						}
 					}
 				}
-			}
-		})
-	}()
+			})
+		}()
 }

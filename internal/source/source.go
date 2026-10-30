@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"hash/fnv"
 	"path/filepath"
+	"sort"
+	"strings"
 	"sync"
 
 	"netease-music-mygo/internal/netease"
@@ -107,7 +109,7 @@ func GetCoverData(id int64) []byte {
 	return nil
 }
 
-// GetAllLocal returns all registered local tracks.
+// GetAllLocal returns all registered local tracks in stable path order.
 func GetAllLocal() []*LocalTrack {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
@@ -115,6 +117,9 @@ func GetAllLocal() []*LocalTrack {
 	for _, t := range registry {
 		list = append(list, t)
 	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].Path < list[j].Path
+	})
 	return list
 }
 
@@ -141,97 +146,115 @@ type LocalFolder struct {
 	Tracks   []netease.Track
 }
 
-// GroupLocalByAlbum groups all registered local tracks into LocalAlbums.
+// GroupLocalByAlbum groups all registered local tracks into LocalAlbums with stable deterministic sorting.
 func GroupLocalByAlbum() []*LocalAlbum {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
 
 	albumMap := make(map[string]*LocalAlbum)
-	var order []string
 
 	for _, lt := range registry {
-		al := lt.Album
+		al := strings.TrimSpace(lt.Album)
 		if al == "" {
 			al = "未知专辑"
 		}
 		item, exists := albumMap[al]
 		if !exists {
 			item = &LocalAlbum{
-				Name:     al,
-				Artist:   lt.Artist,
-				CoverURL: fmt.Sprintf("flashmusic://cover/%d", lt.ID),
+				Name:   al,
+				Artist: lt.Artist,
 			}
 			albumMap[al] = item
-			order = append(order, al)
+		}
+		if item.CoverURL == "" || len(lt.Cover) > 0 {
+			item.CoverURL = fmt.Sprintf("flashmusic://cover/%d", lt.ID)
 		}
 		item.Tracks = append(item.Tracks, lt.ToTrack())
 	}
 
-	res := make([]*LocalAlbum, 0, len(order))
-	for _, name := range order {
-		res = append(res, albumMap[name])
+	res := make([]*LocalAlbum, 0, len(albumMap))
+	for _, item := range albumMap {
+		sort.Slice(item.Tracks, func(i, j int) bool {
+			return item.Tracks[i].Name < item.Tracks[j].Name
+		})
+		res = append(res, item)
 	}
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Name < res[j].Name
+	})
 	return res
 }
 
-// GroupLocalByArtist groups all registered local tracks into LocalArtists.
+// GroupLocalByArtist groups all registered local tracks into LocalArtists with stable deterministic sorting.
 func GroupLocalByArtist() []*LocalArtist {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
 
 	artistMap := make(map[string]*LocalArtist)
-	var order []string
 
 	for _, lt := range registry {
-		ar := lt.Artist
+		ar := strings.TrimSpace(lt.Artist)
 		if ar == "" {
 			ar = "未知歌手"
 		}
 		item, exists := artistMap[ar]
 		if !exists {
 			item = &LocalArtist{
-				Name:     ar,
-				CoverURL: fmt.Sprintf("flashmusic://cover/%d", lt.ID),
+				Name: ar,
 			}
 			artistMap[ar] = item
-			order = append(order, ar)
+		}
+		if item.CoverURL == "" || len(lt.Cover) > 0 {
+			item.CoverURL = fmt.Sprintf("flashmusic://cover/%d", lt.ID)
 		}
 		item.Tracks = append(item.Tracks, lt.ToTrack())
 	}
 
-	res := make([]*LocalArtist, 0, len(order))
-	for _, name := range order {
-		res = append(res, artistMap[name])
+	res := make([]*LocalArtist, 0, len(artistMap))
+	for _, item := range artistMap {
+		sort.Slice(item.Tracks, func(i, j int) bool {
+			return item.Tracks[i].Name < item.Tracks[j].Name
+		})
+		res = append(res, item)
 	}
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Name < res[j].Name
+	})
 	return res
 }
 
-// GroupLocalByFolder groups all registered local tracks into LocalFolders.
+// GroupLocalByFolder groups all registered local tracks into LocalFolders with stable deterministic sorting.
 func GroupLocalByFolder() []*LocalFolder {
 	registryMu.RLock()
 	defer registryMu.RUnlock()
 
 	folderMap := make(map[string]*LocalFolder)
-	var order []string
 
 	for _, lt := range registry {
 		dir := filepath.Dir(lt.Path)
 		item, exists := folderMap[dir]
 		if !exists {
 			item = &LocalFolder{
-				Path:     dir,
-				Name:     filepath.Base(dir),
-				CoverURL: fmt.Sprintf("flashmusic://cover/%d", lt.ID),
+				Path: dir,
+				Name: filepath.Base(dir),
 			}
 			folderMap[dir] = item
-			order = append(order, dir)
+		}
+		if item.CoverURL == "" || len(lt.Cover) > 0 {
+			item.CoverURL = fmt.Sprintf("flashmusic://cover/%d", lt.ID)
 		}
 		item.Tracks = append(item.Tracks, lt.ToTrack())
 	}
 
-	res := make([]*LocalFolder, 0, len(order))
-	for _, p := range order {
-		res = append(res, folderMap[p])
+	res := make([]*LocalFolder, 0, len(folderMap))
+	for _, item := range folderMap {
+		sort.Slice(item.Tracks, func(i, j int) bool {
+			return item.Tracks[i].Name < item.Tracks[j].Name
+		})
+		res = append(res, item)
 	}
+	sort.Slice(res, func(i, j int) bool {
+		return res[i].Path < res[j].Path
+	})
 	return res
 }
