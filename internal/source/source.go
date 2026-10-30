@@ -21,17 +21,20 @@ const (
 
 // LocalTrack represents a local audio file's extracted metadata and state.
 type LocalTrack struct {
-	ID       int64
-	Path     string
-	Title    string
-	Artist   string
-	Album    string
-	Duration int64 // in milliseconds
-	Format   string
-	Size     int64
-	CoverURL string
-	Cover    []byte
-	Lyrics   string
+	ID         int64
+	Path       string
+	Title      string
+	Artist     string
+	Album      string
+	Duration   int64 // in milliseconds
+	Format     string
+	Size       int64
+	SampleRate int // e.g. 96000, 44100, 48000
+	BitDepth   int // e.g. 24, 16
+	Bitrate    int // in kbps, e.g. 320, 256, 128
+	CoverURL   string
+	Cover      []byte
+	Lyrics     string
 }
 
 // ToTrack converts a LocalTrack to a netease.Track compatible structure

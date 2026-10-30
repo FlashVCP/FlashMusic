@@ -718,11 +718,23 @@ func (p *Player) open(t netease.Track, level string) (*netease.Stream, stream, e
 			dl.Close()
 			return nil, nil, err
 		}
-		info := &netease.Stream{
-			URL:   lt.Path,
-			Level: lt.Format,
-			Size:  lt.Size,
-		}
+			streamLevel := "standard"
+			if lt.Format == "flac" {
+				if lt.BitDepth >= 24 || lt.SampleRate >= 88200 {
+					streamLevel = "hires"
+				} else {
+					streamLevel = "lossless"
+				}
+			} else if lt.Bitrate >= 320 {
+				streamLevel = "exhigh"
+			} else if lt.Bitrate >= 192 {
+				streamLevel = "higher"
+			}
+			info := &netease.Stream{
+				URL:   lt.Path,
+				Level: streamLevel,
+				Size:  lt.Size,
+			}
 		return info, s, nil
 	}
 

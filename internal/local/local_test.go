@@ -137,47 +137,78 @@ func TestCanonicalizeDirs(t *testing.T) {
 }
 
 func TestDeduplicateLocal(t *testing.T) {
-	// Two tracks with same artist & title, one FLAC (high quality) and one MP3 (low quality)
-	flacTrack := &source.LocalTrack{
-		ID:       -201,
-		Path:     `D:\Music\FLAC\Jay - 晴天.flac`,
-		Title:    "晴天",
-		Artist:   "周杰伦",
-		Album:    "叶惠美",
-		Duration: 269000,
-		Format:   "flac",
-		Size:     35 << 20,
+	// 4 versions of the same song across different directories:
+	// 1. Hi-Res FLAC (24bit / 96kHz)
+	hiresFlac := &source.LocalTrack{
+		ID:         -201,
+		Path:       `D:\Music\HiRes\Jay - 晴天.flac`,
+		Title:      "晴天",
+		Artist:     "周杰伦",
+		Album:      "叶惠美",
+		Duration:   269000,
+		Format:     "flac",
+		BitDepth:   24,
+		SampleRate: 96000,
+		Size:       50 << 20,
 	}
-	mp3Track := &source.LocalTrack{
-		ID:       -202,
-		Path:     `D:\Music\Car\周杰伦 - 晴天.mp3`,
-		Title:    "晴天",
-		Artist:   "周杰伦",
-		Album:    "叶惠美",
-		Duration: 270000,
-		Format:   "mp3",
-		Size:     8 << 20,
+	// 2. CD Lossless FLAC (16bit / 44.1kHz)
+	cdFlac := &source.LocalTrack{
+		ID:         -202,
+		Path:       `D:\Music\CD\Jay - 晴天.flac`,
+		Title:      "晴天",
+		Artist:     "周杰伦",
+		Album:      "叶惠美",
+		Duration:   269000,
+		Format:     "flac",
+		BitDepth:   16,
+		SampleRate: 44100,
+		Size:       25 << 20,
+	}
+	// 3. MP3 320kbps
+	mp3_320 := &source.LocalTrack{
+		ID:         -203,
+		Path:       `D:\Music\320k\周杰伦 - 晴天.mp3`,
+		Title:      "晴天",
+		Artist:     "周杰伦",
+		Album:      "叶惠美",
+		Duration:   270000,
+		Format:     "mp3",
+		Bitrate:    320,
+		Size:       10 << 20,
+	}
+	// 4. MP3 128kbps
+	mp3_128 := &source.LocalTrack{
+		ID:         -204,
+		Path:       `D:\Music\128k\周杰伦 - 晴天.mp3`,
+		Title:      "晴天",
+		Artist:     "周杰伦",
+		Album:      "叶惠美",
+		Duration:   270500,
+		Format:     "mp3",
+		Bitrate:    128,
+		Size:       4 << 20,
 	}
 	otherTrack := &source.LocalTrack{
-		ID:       -203,
+		ID:       -205,
 		Path:     `D:\Music\Pop\周杰伦 - 七里香.mp3`,
 		Title:    "七里香",
 		Artist:   "周杰伦",
 		Duration: 299000,
 		Format:   "mp3",
+		Bitrate:  320,
 	}
 
-	tracks := []*source.LocalTrack{flacTrack, mp3Track, otherTrack}
+	tracks := []*source.LocalTrack{mp3_128, cdFlac, mp3_320, hiresFlac, otherTrack}
 	deduped, dupes := source.DeduplicateLocal(tracks)
 
-	if dupes != 1 {
-		t.Fatalf("expected 1 duplicate merged, got %d", dupes)
+	if dupes != 3 {
+		t.Fatalf("expected 3 duplicates merged, got %d", dupes)
 	}
 	if len(deduped) != 2 {
 		t.Fatalf("expected 2 deduped tracks, got %d", len(deduped))
 	}
 
-	// Verify that the FLAC version was chosen over MP3
+	// Verify that the Hi-Res FLAC version was strictly chosen over CD FLAC and MP3s
 	var chosenQingTian *source.LocalTrack
 	for _, tr := range deduped {
 		if tr.Title == "晴天" {
@@ -185,7 +216,21 @@ func TestDeduplicateLocal(t *testing.T) {
 			break
 		}
 	}
-	if chosenQingTian == nil || chosenQingTian.Format != "flac" {
-		t.Fatalf("expected FLAC track to be selected for 晴天, got %+v", chosenQingTian)
+	if chosenQingTian == nil || chosenQingTian.Path != hiresFlac.Path {
+		t.Fatalf("expected Hi-Res FLAC track to be selected for 晴天, got %+v", chosenQingTian)
 	}
-}
+
+	// Test tie between CD FLAC and MP3s (without Hi-Res)
+	tracks2 := []*source.LocalTrack{mp3_128, mp3_320, cdFlac}
+	deduped2, _ := source.DeduplicateLocal(tracks2)
+	if deduped2[0].Path != cdFlac.Path {
+		t.Fatalf("expected CD FLAC to win over MP3s, got %s", deduped2[0].Path)
+	}
+
+		// Test tie between 320k and 128k MP3
+		tracks3 := []*source.LocalTrack{mp3_128, mp3_320}
+		deduped3, _ := source.DeduplicateLocal(tracks3)
+		if deduped3[0].Path != mp3_320.Path {
+			t.Fatalf("expected 320k MP3 to win over 128k MP3, got %s", deduped3[0].Path)
+		}
+	}

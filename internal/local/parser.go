@@ -75,8 +75,15 @@ func parseFLAC(path string, track *source.LocalTrack) {
 	defer stream.Close()
 
 	info := stream.Info
-	if info != nil && info.SampleRate > 0 {
-		track.Duration = int64((info.NSamples * 1000) / uint64(info.SampleRate))
+	if info != nil {
+		if info.SampleRate > 0 {
+			track.SampleRate = int(info.SampleRate)
+			track.Duration = int64((info.NSamples * 1000) / uint64(info.SampleRate))
+		}
+		track.BitDepth = int(info.BitsPerSample)
+		if track.Duration > 0 && track.Size > 0 {
+			track.Bitrate = int((track.Size * 8) / track.Duration)
+		}
 	}
 
 	for _, block := range stream.Blocks {
@@ -108,6 +115,12 @@ func parseFLAC(path string, track *source.LocalTrack) {
 	}
 }
 
+var (
+	mp3BitratesV1  = [16]int{0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 0}
+	mp3BitratesV2  = [16]int{0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160, 0}
+	mp3SampleRates = [4]int{44100, 48000, 32000, 0}
+)
+
 func parseMP3(path string, track *source.LocalTrack) {
 	f, err := os.Open(path)
 	if err != nil {
@@ -116,16 +129,20 @@ func parseMP3(path string, track *source.LocalTrack) {
 	defer f.Close()
 
 	// 1. Try parsing ID3v2 header
+	var id3Size int64
 	var header [10]byte
 	if _, err := io.ReadFull(f, header[:]); err == nil && string(header[:3]) == "ID3" {
-		size := syncsafe(binary.BigEndian.Uint32(header[6:10]))
-		tagData := make([]byte, size)
+		id3Size = int64(syncsafe(binary.BigEndian.Uint32(header[6:10]))) + 10
+		tagData := make([]byte, id3Size-10)
 		if _, err := io.ReadFull(f, tagData); err == nil {
 			parseID3v2Frames(tagData, int(header[3]), track)
 		}
 	}
 
-	// 2. Try fallback to ID3v1 (last 128 bytes) if tags are empty
+	// 2. Parse MPEG frame header to accurately determine SampleRate, Bitrate, and calculate duration if needed
+	parseMP3FrameHeader(f, id3Size, track)
+
+	// 3. Try fallback to ID3v1 (last 128 bytes) if tags are empty
 	if track.Title == "" || track.Artist == "" {
 		fi, err := f.Stat()
 		if err == nil && fi.Size() >= 128 {
@@ -141,6 +158,42 @@ func parseMP3(path string, track *source.LocalTrack) {
 					track.Album = cleanString(string(id3v1[63:93]))
 				}
 			}
+		}
+	}
+}
+
+func parseMP3FrameHeader(f *os.File, id3Size int64, track *source.LocalTrack) {
+	buf := make([]byte, 16384)
+	n, err := f.ReadAt(buf, id3Size)
+	if err != nil && n < 4 {
+		return
+	}
+	for i := 0; i <= n-4; i++ {
+		b := buf[i:]
+		if b[0] == 0xff && (b[1]&0xe0) == 0xe0 {
+			version := (b[1] >> 3) & 3 // 3: MPEG 1, 2: MPEG 2, 0: MPEG 2.5
+			layer := (b[1] >> 1) & 3   // 1: layer III
+			if version == 1 || layer != 1 {
+				continue
+			}
+			bi, ri := b[2]>>4, (b[2]>>2)&3
+			if bi == 0 || bi == 15 || ri == 3 {
+				continue
+			}
+			var br int
+			if version == 3 {
+				br = mp3BitratesV1[bi]
+			} else {
+				br = mp3BitratesV2[bi]
+			}
+			track.Bitrate = br
+			track.SampleRate = mp3SampleRates[ri]
+			track.BitDepth = 16
+			if track.Duration == 0 && br > 0 && track.Size > id3Size {
+				audioBytes := track.Size - id3Size
+				track.Duration = (audioBytes * 8) / int64(br)
+			}
+			return
 		}
 	}
 }

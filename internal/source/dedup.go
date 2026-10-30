@@ -82,30 +82,71 @@ func normalizeString(s string) string {
 	return b.String()
 }
 
+// qualityScore computes an objective quality score for a track:
+// 1. Hi-Res Lossless (FLAC >= 24-bit or >= 88.2kHz): ~3500+
+// 2. Standard Lossless (FLAC 16-bit/44.1kHz, WAV, APE): ~2200 - 2500
+// 3. Lossy high-bitrate (MP3 320kbps): ~1320
+// 4. Lossy medium-bitrate (MP3 192kbps - 256kbps): ~1200
+// 5. Lossy low-bitrate (MP3 128kbps): ~1128
 func qualityScore(t *LocalTrack) int {
 	score := 0
-	switch strings.ToLower(t.Format) {
+	format := strings.ToLower(t.Format)
+
+	switch format {
 	case "flac":
-		score += 1000
-	case "wav":
-		score += 900
-	case "ape":
-		score += 850
+		if t.BitDepth >= 24 || t.SampleRate >= 88200 {
+			// Hi-Res tier
+			score = 3000
+		} else {
+			// Standard CD lossless tier
+			score = 2000
+		}
+		// Reward bit depth (e.g. 24-bit vs 16-bit)
+		if t.BitDepth > 0 {
+			score += t.BitDepth * 15
+		} else {
+			score += 16 * 15
+		}
+		// Reward sample rate (e.g. 96kHz vs 44.1kHz)
+		if t.SampleRate > 0 {
+			score += t.SampleRate / 1000
+		}
+	case "wav", "ape":
+		score = 2000
+		if t.BitDepth > 0 {
+			score += t.BitDepth * 10
+		}
+		if t.SampleRate > 0 {
+			score += t.SampleRate / 1000
+		}
 	case "mp3":
-		score += 500
+		score = 1000
+		// Reward parsed bitrate directly (320, 256, 192, 128, etc.)
+		if t.Bitrate > 0 {
+			score += t.Bitrate
+		} else if t.Duration > 0 && t.Size > 0 {
+			// Estimate bitrate if not directly parsed
+			estBr := int((t.Size * 8) / t.Duration)
+			score += min(estBr, 320)
+		} else {
+			score += 128
+		}
 	default:
-		score += 100
+		score = 500
 	}
-	// Prefer larger files (higher bitrate)
-	mb := int(t.Size >> 20)
-	score += min(mb, 200)
-	// Prefer tracks with embedded covers
+
+	// Tie-breakers:
+	// 1. Embedded album artwork
 	if len(t.Cover) > 0 {
-		score += 50
+		score += 30
 	}
-	// Prefer tracks with lyrics
+	// 2. Embedded or matched lyrics
 	if t.Lyrics != "" {
-		score += 50
+		score += 20
+	}
+	// 3. Complete metadata (album name is not empty or "未知专辑")
+	if t.Album != "" && t.Album != "未知专辑" {
+		score += 10
 	}
 	return score
 }
