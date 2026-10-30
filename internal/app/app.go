@@ -85,10 +85,14 @@ type app struct {
 		podcasts   map[int64]*podcastData
 		podcastTab *podcastTab // the podcasts tab's lists
 
-		localTracks   []netease.Track
-		localDirs     []string
-		localScanning bool
-		localErr      string
+		localTracks      []netease.Track
+		localDirs        []string
+		localScanning    bool
+		localErr         string
+		localTab         int // 0: 单曲, 1: 专辑, 2: 歌手, 3: 文件夹
+		localFilterType  string
+		localFilterName  string
+		localFilterSongs []netease.Track
 	trackList  ui.ListState
 	// Where the page and the sidebar are scrolled, kept while Now Playing
 	// covers them, unbuilt.

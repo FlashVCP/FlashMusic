@@ -117,3 +117,121 @@ func GetAllLocal() []*LocalTrack {
 	}
 	return list
 }
+
+// LocalAlbum groups local tracks by their album name.
+type LocalAlbum struct {
+	Name     string
+	Artist   string
+	CoverURL string
+	Tracks   []netease.Track
+}
+
+// LocalArtist groups local tracks by their artist name.
+type LocalArtist struct {
+	Name     string
+	CoverURL string
+	Tracks   []netease.Track
+}
+
+// LocalFolder groups local tracks by their parent folder path.
+type LocalFolder struct {
+	Path     string
+	Name     string
+	CoverURL string
+	Tracks   []netease.Track
+}
+
+// GroupLocalByAlbum groups all registered local tracks into LocalAlbums.
+func GroupLocalByAlbum() []*LocalAlbum {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+
+	albumMap := make(map[string]*LocalAlbum)
+	var order []string
+
+	for _, lt := range registry {
+		al := lt.Album
+		if al == "" {
+			al = "未知专辑"
+		}
+		item, exists := albumMap[al]
+		if !exists {
+			item = &LocalAlbum{
+				Name:     al,
+				Artist:   lt.Artist,
+				CoverURL: fmt.Sprintf("flashmusic://cover/%d", lt.ID),
+			}
+			albumMap[al] = item
+			order = append(order, al)
+		}
+		item.Tracks = append(item.Tracks, lt.ToTrack())
+	}
+
+	res := make([]*LocalAlbum, 0, len(order))
+	for _, name := range order {
+		res = append(res, albumMap[name])
+	}
+	return res
+}
+
+// GroupLocalByArtist groups all registered local tracks into LocalArtists.
+func GroupLocalByArtist() []*LocalArtist {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+
+	artistMap := make(map[string]*LocalArtist)
+	var order []string
+
+	for _, lt := range registry {
+		ar := lt.Artist
+		if ar == "" {
+			ar = "未知歌手"
+		}
+		item, exists := artistMap[ar]
+		if !exists {
+			item = &LocalArtist{
+				Name:     ar,
+				CoverURL: fmt.Sprintf("flashmusic://cover/%d", lt.ID),
+			}
+			artistMap[ar] = item
+			order = append(order, ar)
+		}
+		item.Tracks = append(item.Tracks, lt.ToTrack())
+	}
+
+	res := make([]*LocalArtist, 0, len(order))
+	for _, name := range order {
+		res = append(res, artistMap[name])
+	}
+	return res
+}
+
+// GroupLocalByFolder groups all registered local tracks into LocalFolders.
+func GroupLocalByFolder() []*LocalFolder {
+	registryMu.RLock()
+	defer registryMu.RUnlock()
+
+	folderMap := make(map[string]*LocalFolder)
+	var order []string
+
+	for _, lt := range registry {
+		dir := filepath.Dir(lt.Path)
+		item, exists := folderMap[dir]
+		if !exists {
+			item = &LocalFolder{
+				Path:     dir,
+				Name:     filepath.Base(dir),
+				CoverURL: fmt.Sprintf("flashmusic://cover/%d", lt.ID),
+			}
+			folderMap[dir] = item
+			order = append(order, dir)
+		}
+		item.Tracks = append(item.Tracks, lt.ToTrack())
+	}
+
+	res := make([]*LocalFolder, 0, len(order))
+	for _, p := range order {
+		res = append(res, folderMap[p])
+	}
+	return res
+}

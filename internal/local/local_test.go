@@ -75,3 +75,46 @@ func TestScanDirectoryEmpty(t *testing.T) {
 		t.Fatalf("expected artist 周杰伦 and title 晴天, got %q - %q", tracks[0].Artist, tracks[0].Title)
 	}
 }
+
+func TestLocalGrouping(t *testing.T) {
+	t1 := &source.LocalTrack{
+		ID:     -101,
+		Path:   `C:\Music\Pop\Jay - Track1.mp3`,
+		Title:  "Track1",
+		Artist: "Jay",
+		Album:  "Fantasy",
+	}
+	t2 := &source.LocalTrack{
+		ID:     -102,
+		Path:   `C:\Music\Pop\Jay - Track2.mp3`,
+		Title:  "Track2",
+		Artist: "Jay",
+		Album:  "Fantasy",
+	}
+	t3 := &source.LocalTrack{
+		ID:     -103,
+		Path:   `C:\Music\Rock\LinkinPark - InTheEnd.flac`,
+		Title:  "InTheEnd",
+		Artist: "LinkinPark",
+		Album:  "Hybrid Theory",
+	}
+
+	source.RegisterLocal(t1)
+	source.RegisterLocal(t2)
+	source.RegisterLocal(t3)
+
+	albums := source.GroupLocalByAlbum()
+	if len(albums) < 2 {
+		t.Fatalf("expected at least 2 albums, got %d", len(albums))
+	}
+
+	artists := source.GroupLocalByArtist()
+	if len(artists) < 2 {
+		t.Fatalf("expected at least 2 artists, got %d", len(artists))
+	}
+
+	folders := source.GroupLocalByFolder()
+	if len(folders) < 2 {
+		t.Fatalf("expected at least 2 folders, got %d", len(folders))
+	}
+}

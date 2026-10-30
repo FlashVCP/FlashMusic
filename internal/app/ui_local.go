@@ -4,19 +4,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/egoist/mygo"
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/local"
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/source"
 )
 
 func (a *app) localPage(c *ui.Context) {
-	header := func(c *ui.Context) {
-		a.localHeader(c)
-	}
-
 	if len(a.localTracks) == 0 {
 		top, bottom := a.insets(c)
 		ui.Scroll(c.Key("local-empty")).TrackScroll(&a.pageScroll).Grow(1).
@@ -24,18 +22,39 @@ func (a *app) localPage(c *ui.Context) {
 			ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 			a.startMark(c)
 			defer a.endMark(c)
-			header(c)
+			a.localHeader(c)
 			a.localEmpty(c)
 		})
 		return
 	}
 
-	a.trackRows(c, a.localTracks, true, header)
+	// Filtered sub-view (Album / Artist / Folder details)
+	if a.localFilterType != "" && len(a.localFilterSongs) > 0 {
+		a.trackRows(c, a.localFilterSongs, true, func(c *ui.Context) {
+			a.localFilteredHeader(c)
+		})
+		return
+	}
+
+	header := func(c *ui.Context) {
+		a.localHeader(c)
+	}
+
+	switch a.localTab {
+	case 1:
+		a.localAlbumsView(c, header)
+	case 2:
+		a.localArtistsView(c, header)
+	case 3:
+		a.localFoldersView(c, header)
+	default:
+		a.trackRows(c, a.localTracks, true, header)
+	}
 }
 
 func (a *app) localHeader(c *ui.Context) {
 	p := a.pal
-	ui.Column(c).Padding(16, 0, 24, 0).Gap(10).Children(func() {
+	ui.Column(c).Padding(16, 0, 20, 0).Gap(14).Children(func() {
 		ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
 			ui.Box(c).Size(56, 56).Radius(14).Background(p.accent.Alpha(0.12)).Center().Children(func() {
 				ui.Icon(c, iconFolder).Size(28, 28).TextColor(p.accent)
@@ -52,7 +71,7 @@ func (a *app) localHeader(c *ui.Context) {
 			})
 		})
 
-		ui.Row(c).Gap(10).Margin(6, 0, 0, 0).Children(func() {
+		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			if len(a.localTracks) > 0 {
 				if pillButton(c.Key("play-all"), iconPlay, "播放全部", p.accent, p.onAccent).Clicked() {
 					if a.pl.Shuffle() {
@@ -81,16 +100,207 @@ func (a *app) localHeader(c *ui.Context) {
 			}
 		})
 
-		if len(a.localDirs) > 0 {
-			ui.Row(c).Gap(8).Margin(4, 0, 0, 0).Children(func() {
-				ui.Text(c, "扫描路径:").FontSize(11.5).TextColor(p.faint)
-				for _, dir := range a.localDirs {
-					ui.Text(c, filepath.Base(dir)).FontSize(11.5).TextColor(p.muted).
-						Padding(1, 6).Radius(4).Background(p.hover)
-				}
+		// Categorization tabs
+		if len(a.localTracks) > 0 {
+			ui.Row(c).AlignItems(ui.Center).Children(func() {
+				segmented(c.Key("local-tabs"), &a.localTab, "全部单曲", "按专辑", "按歌手", "按文件夹")
 			})
 		}
 	})
+}
+
+func (a *app) localFilteredHeader(c *ui.Context) {
+	p := a.pal
+	ui.Column(c).Padding(16, 0, 24, 0).Gap(14).Children(func() {
+		if pillButton(c.Key("back-to-all"), iconBack, "返回全部本地音乐", p.hover.Over(p.bg), p.text).Clicked() {
+			a.localFilterType = ""
+			a.localFilterName = ""
+			a.localFilterSongs = nil
+			return
+		}
+
+		iconTarget := iconNote
+		typeLabel := "专辑"
+		switch a.localFilterType {
+		case "artist":
+			iconTarget = iconUser
+			typeLabel = "歌手"
+		case "folder":
+			iconTarget = iconFolder
+			typeLabel = "文件夹"
+		}
+
+		ui.Row(c).Gap(18).AlignItems(ui.Center).Children(func() {
+			if len(a.localFilterSongs) > 0 && a.localFilterSongs[0].Album.PicURL != "" {
+				a.cover(c, a.localFilterSongs[0].Album.PicURL, 140, 72, 10)
+			} else {
+				ui.Box(c).Size(72, 72).Radius(10).Background(p.hover).Center().Children(func() {
+					ui.Icon(c, iconTarget).Size(32, 32).TextColor(p.muted)
+				})
+			}
+			ui.Column(c).Grow(1).Gap(4).Children(func() {
+				ui.Text(c, typeLabel+" · "+a.localFilterName).FontSize(24).FontWeight(700).LetterSpacing(-0.4)
+				ui.Textf(c, "共 %d 首歌曲", len(a.localFilterSongs)).FontSize(13).TextColor(p.muted)
+			})
+		})
+
+		ui.Row(c).Gap(10).Margin(4, 0, 0, 0).Children(func() {
+			if pillButton(c.Key("filter-play"), iconPlay, "播放这组歌曲", p.accent, p.onAccent).Clicked() {
+				if a.pl.Shuffle() {
+					a.pl.ToggleShuffle()
+				}
+				a.pl.PlayQueue(a.localFilterSongs, 0)
+			}
+			if pillButton(c.Key("filter-shuffle"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
+				if !a.pl.Shuffle() {
+					a.pl.ToggleShuffle()
+				}
+				a.pl.PlayQueue(a.localFilterSongs, 0)
+			}
+		})
+	})
+}
+
+func (a *app) localAlbumsView(c *ui.Context, header func(c *ui.Context)) {
+	top, bottom := a.insets(c)
+	albums := source.GroupLocalByAlbum()
+
+	ui.Scroll(c.Key("local-albums")).TrackScroll(&a.pageScroll).Grow(1).
+		Padding(top+pageGap, pagePad, bottom+48, pagePad).
+		ScrollbarInsets(top, 0, bottom, 0).Children(func() {
+		a.startMark(c)
+		defer a.endMark(c)
+		header(c)
+
+		ui.Grid(c).Columns(a.columns(c, 156)).GapX(20).GapY(28).Children(func() {
+			for _, al := range albums {
+				a.localAlbumCard(c, al)
+			}
+		})
+	})
+}
+
+func (a *app) localAlbumCard(c *ui.Context, al *source.LocalAlbum) {
+	p := a.pal
+	card := ui.ButtonBase(c.Key(al.Name)).Column().Gap(10).AlignItems(ui.Stretch).FocusRing(false).Label(al.Name)
+	hovered := card.Hovered()
+	card.Children(func() {
+		art := ui.Box(c).AspectRatio(1).Radius(10)
+		lift := ui.Pose{}
+		if hovered {
+			lift = ui.Pose{Y: -3}
+			art.Shadow(0, 12, 28, -6, p.cardShade)
+		} else {
+			art.Shadow(0, 2, 8, -2, p.cardShade)
+		}
+		art.AnimatePose(lift, ui.Snappy)
+		art.Children(func() { a.coverFill(c, al.CoverURL, 400, 10) })
+
+		ui.Text(c, al.Name).FontSize(13).FontWeight(500).MaxLines(2).LineHeight(1.35)
+		artist := al.Artist
+		if artist == "" {
+			artist = "未知歌手"
+		}
+		ui.Textf(c, "%s · %d 首", artist, len(al.Tracks)).FontSize(12).TextColor(p.muted).SingleLine().Margin(-6, 0, 0, 0)
+	})
+	if card.Clicked() {
+		a.localFilterType = "album"
+		a.localFilterName = al.Name
+		a.localFilterSongs = al.Tracks
+		a.pageScroll = ui.ScrollState{}
+	}
+}
+
+func (a *app) localArtistsView(c *ui.Context, header func(c *ui.Context)) {
+	top, bottom := a.insets(c)
+	artists := source.GroupLocalByArtist()
+
+	ui.Scroll(c.Key("local-artists")).TrackScroll(&a.pageScroll).Grow(1).
+		Padding(top+pageGap, pagePad, bottom+48, pagePad).
+		ScrollbarInsets(top, 0, bottom, 0).Children(func() {
+		a.startMark(c)
+		defer a.endMark(c)
+		header(c)
+
+		ui.Grid(c).Columns(a.columns(c, 140)).GapX(20).GapY(28).Children(func() {
+			for _, ar := range artists {
+				a.localArtistCard(c, ar)
+			}
+		})
+	})
+}
+
+func (a *app) localArtistCard(c *ui.Context, ar *source.LocalArtist) {
+	p := a.pal
+	card := ui.ButtonBase(c.Key(ar.Name)).Column().Gap(10).AlignItems(ui.Stretch).FocusRing(false).Label(ar.Name)
+	hovered := card.Hovered()
+	card.Children(func() {
+		art := ui.Box(c).AspectRatio(1).Radius(999)
+		lift := ui.Pose{}
+		if hovered {
+			lift = ui.Pose{Y: -3}
+			art.Shadow(0, 12, 28, -6, p.cardShade)
+		} else {
+			art.Shadow(0, 2, 8, -2, p.cardShade)
+		}
+		art.AnimatePose(lift, ui.Snappy)
+		art.Children(func() { a.coverFill(c, ar.CoverURL, 400, 999) })
+
+		ui.Text(c, ar.Name).FontSize(13.5).FontWeight(600).SingleLine().AlignSelf(ui.Center)
+		ui.Textf(c, "%d 首歌曲", len(ar.Tracks)).FontSize(12).TextColor(p.muted).SingleLine().AlignSelf(ui.Center).Margin(-6, 0, 0, 0)
+	})
+	if card.Clicked() {
+		a.localFilterType = "artist"
+		a.localFilterName = ar.Name
+		a.localFilterSongs = ar.Tracks
+		a.pageScroll = ui.ScrollState{}
+	}
+}
+
+func (a *app) localFoldersView(c *ui.Context, header func(c *ui.Context)) {
+	top, bottom := a.insets(c)
+	folders := source.GroupLocalByFolder()
+
+	ui.Scroll(c.Key("local-folders")).TrackScroll(&a.pageScroll).Grow(1).
+		Padding(top+pageGap, pagePad, bottom+48, pagePad).
+		ScrollbarInsets(top, 0, bottom, 0).Children(func() {
+		a.startMark(c)
+		defer a.endMark(c)
+		header(c)
+
+		ui.Grid(c).Columns(a.columns(c, 180)).GapX(20).GapY(24).Children(func() {
+			for _, f := range folders {
+				a.localFolderCard(c, f)
+			}
+		})
+	})
+}
+
+func (a *app) localFolderCard(c *ui.Context, f *source.LocalFolder) {
+	p := a.pal
+	card := ui.ButtonBase(c.Key(f.Path)).Padding(14).Radius(12).Background(p.hover).FocusRing(false).Label(f.Name)
+	hovered := card.Hovered()
+	bg := p.hover
+	if hovered {
+		bg = p.press
+	}
+	card.Background(card.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond}))
+	card.Children(func() {
+		ui.Column(c).Grow(1).Gap(8).Children(func() {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
+				ui.Icon(c, iconFolder).Size(22, 22).TextColor(p.accent)
+				ui.Text(c, f.Name).FontSize(14).FontWeight(600).SingleLine().Grow(1).Shrink(1)
+			})
+			ui.Text(c, f.Path).FontSize(11.5).TextColor(p.faint).MaxLines(1)
+			ui.Textf(c, "包含 %d 首歌曲", len(f.Tracks)).FontSize(12).TextColor(p.muted)
+		})
+	})
+	if card.Clicked() {
+		a.localFilterType = "folder"
+		a.localFilterName = f.Name
+		a.localFilterSongs = f.Tracks
+		a.pageScroll = ui.ScrollState{}
+	}
 }
 
 func (a *app) localEmpty(c *ui.Context) {
@@ -166,6 +376,32 @@ func (a *app) scanLocalDirs() {
 		a.post(func() {
 			a.localScanning = false
 			a.localTracks = allTracks
+			if a.localFilterType != "" {
+				// Refresh active filter
+				switch a.localFilterType {
+				case "album":
+					for _, al := range source.GroupLocalByAlbum() {
+						if al.Name == a.localFilterName {
+							a.localFilterSongs = al.Tracks
+							break
+						}
+					}
+				case "artist":
+					for _, ar := range source.GroupLocalByArtist() {
+						if ar.Name == a.localFilterName {
+							a.localFilterSongs = ar.Tracks
+							break
+						}
+					}
+				case "folder":
+					for _, f := range source.GroupLocalByFolder() {
+						if f.Name == a.localFilterName {
+							a.localFilterSongs = f.Tracks
+							break
+						}
+					}
+				}
+			}
 		})
 	}()
 }
