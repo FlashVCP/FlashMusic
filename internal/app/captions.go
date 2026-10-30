@@ -13,6 +13,8 @@ import (
 	"github.com/egoist/mygo"
 
 	"netease-music-mygo/internal/lyrics"
+	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/source"
 	"netease-music-mygo/internal/speech"
 )
 
@@ -208,16 +210,29 @@ func (a *app) deleteModel() {
 	}()
 }
 
+// captionTarget returns the transcript target identifier for tr:
+// its ProgramID if it is a podcast episode, or its negative deterministic
+// ID if it is a local track, or 0 if captions are not supported for it.
+func (a *app) captionTarget(tr *netease.Track) int64 {
+	if tr == nil {
+		return 0
+	}
+	if tr.ProgramID != 0 {
+		return tr.ProgramID
+	}
+	if source.IsLocal(tr.ID) {
+		return tr.ID
+	}
+	return 0
+}
+
 // syncCaptions keeps the episode playing written down ahead of the
 // listener: it loads its transcript, and starts a transcription from the
 // first of what is not written down from where they are, unless one
 // running gets there soon. It runs whenever the player changes.
 func (a *app) syncCaptions() {
 	cs := &a.captions
-	var program int64
-	if tr := a.pl.Current(); tr != nil {
-		program = tr.ProgramID
-	}
+	program := a.captionTarget(a.pl.Current())
 	if program != cs.program {
 		a.pauseCaptions()
 		a.saveTranscript()

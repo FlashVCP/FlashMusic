@@ -8,6 +8,7 @@ import (
 
 	"netease-music-mygo/internal/lyrics"
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/source"
 	"netease-music-mygo/internal/speech"
 )
 
@@ -29,26 +30,31 @@ func (a *app) captionsPane(c *ui.Context, tr *netease.Track, h float32) {
 		})
 		return
 	}
-	// Until the player says the episode changed, what the app has is the
-	// last one's: none of it shows.
-	var lines []lyrics.Line
-	if cs.program == tr.ProgramID {
-		lines = cs.lines
-	}
-	pos := pl.Position()
-	if len(lines) == 0 {
-		switch {
-		case cs.program != tr.ProgramID:
-			a.captionsNote(c, "正在识别…", "", nil)
-		case cs.failed == cs.program:
-			a.captionsNote(c, "字幕生成失败", "", nil)
-		case a.captionsWritten():
-			a.captionsNote(c, "这期节目没有识别到语音", "", nil)
-		default:
-			a.captionsNote(c, "正在识别…", "", nil)
+		// Until the player says the episode or local track changed, what the app has is the
+		// last one's: none of it shows.
+		target := a.captionTarget(tr)
+		var lines []lyrics.Line
+		if cs.program == target {
+			lines = cs.lines
 		}
-		return
-	}
+		pos := pl.Position()
+		if len(lines) == 0 {
+			switch {
+			case cs.program != target:
+				a.captionsNote(c, "正在识别…", "", nil)
+			case cs.failed == cs.program:
+				a.captionsNote(c, "字幕生成失败", "", nil)
+			case a.captionsWritten():
+				emptyNote := "这期节目没有识别到语音"
+				if source.IsLocal(tr.ID) {
+					emptyNote = "未识别到语音内容"
+				}
+				a.captionsNote(c, emptyNote, "", nil)
+			default:
+				a.captionsNote(c, "正在识别…", "", nil)
+			}
+			return
+		}
 	cur := lyrics.Index(lines, pos)
 	// A line stays lit through a pause, but not where nothing is written
 	// down yet: after a seek ahead, until the words there are.

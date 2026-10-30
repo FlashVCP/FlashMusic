@@ -9,6 +9,7 @@ import (
 
 	"netease-music-mygo/internal/lyrics"
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/source"
 )
 
 var white = ui.RGB(255, 255, 255)
@@ -105,19 +106,27 @@ func (a *app) nowPlayingBody(c *ui.Context, tr *netease.Track, art *artwork, acc
 	a.commentsFor(tr)
 	// An episode has what it is about and its captions in place of lyrics;
 	// a song, lyrics in place of those.
-	switch program := tr.ProgramID != 0; {
-	case program && a.npPane == paneWall:
-		a.npPane = paneQueue
-	case program && (a.npPane == paneLyrics || a.npPane == paneStage):
-		a.npPane = paneProgram
-		if a.captionsOn() {
-			a.npPane = paneCaptions
+		switch program := tr.ProgramID != 0; {
+		case program && a.npPane == paneWall:
+			a.npPane = paneQueue
+		case program && (a.npPane == paneLyrics || a.npPane == paneStage):
+			a.npPane = paneProgram
+			if a.captionsOn() {
+				a.npPane = paneCaptions
+			}
+		case program && a.npPane == paneCaptions && !a.captionsShown():
+			a.npPane = paneProgram
+		case !program && a.npPane == paneProgram:
+			a.npPane = a.lyricsPaneChosen()
+		case !program && a.npPane == paneCaptions && (!source.IsLocal(tr.ID) || !a.captionsShown()):
+			a.npPane = a.lyricsPaneChosen()
 		}
-	case program && a.npPane == paneCaptions && !a.captionsShown():
-		a.npPane = paneProgram
-	case !program && (a.npPane == paneProgram || a.npPane == paneCaptions):
-		a.npPane = a.lyricsPaneChosen()
-	}
+		if source.IsLocal(tr.ID) && a.lyricTrack != tr.ID {
+			lt, _ := source.GetLocal(tr.ID)
+			if lt != nil && lt.Lyrics == "" && a.captionsOn() {
+				a.npPane = paneCaptions
+			}
+		}
 	if a.npPane != paneQueue {
 		a.queueAt = -1
 	}
@@ -294,12 +303,21 @@ type npTab struct {
 // npTabs returns the tabs of Now Playing, in order, for what plays: ⌘1
 // chooses the first, ⌘2 the second, and on.
 func (a *app) npTabs() []npTab {
-	if tr := a.pl.Current(); tr != nil && tr.ProgramID != 0 {
-		tabs := []npTab{{paneProgram, "简介"}}
-		if a.captionsShown() {
-			tabs = append(tabs, npTab{paneCaptions, "字幕"})
+	if tr := a.pl.Current(); tr != nil {
+		if tr.ProgramID != 0 {
+			tabs := []npTab{{paneProgram, "简介"}}
+			if a.captionsShown() {
+				tabs = append(tabs, npTab{paneCaptions, "字幕"})
+			}
+			return append(tabs, npTab{paneQueue, "待播清单"}, npTab{paneComments, "评论"})
 		}
-		return append(tabs, npTab{paneQueue, "待播清单"}, npTab{paneComments, "评论"})
+		if source.IsLocal(tr.ID) {
+			tabs := []npTab{{paneLyrics, "歌词"}}
+			if a.captionsShown() {
+				tabs = append(tabs, npTab{paneCaptions, "AI字幕"})
+			}
+			return append(tabs, npTab{paneStage, "律动"}, npTab{paneQueue, "待播清单"})
+		}
 	}
 	return []npTab{{paneLyrics, "歌词"}, {paneStage, "律动"}, {paneQueue, "待播清单"}, {paneWall, "选歌"}, {paneComments, "评论"}}
 }

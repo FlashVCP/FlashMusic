@@ -9,6 +9,7 @@ import (
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/source"
 	"netease-music-mygo/internal/speech"
 )
 
@@ -184,5 +185,36 @@ func TestCaptionsOnTheirWay(t *testing.T) {
 	tt.Frame()
 	if !tt.HasText("这期节目没有识别到语音") {
 		t.Errorf("written down whole: %q", tt.Texts())
+	}
+}
+
+func TestLocalTrackCaptionTarget(t *testing.T) {
+	a := newTestApp()
+	localID := source.LocalTrackID("I:/music/test.flac")
+	tr := &netease.Track{ID: localID, Name: "Local Test Track"}
+	target := a.captionTarget(tr)
+	if target != localID {
+		t.Fatalf("expected target to be local ID %d, got %d", localID, target)
+	}
+	if target >= 0 {
+		t.Fatalf("expected negative target ID for local track, got %d", target)
+	}
+
+	// Verify Now Playing tabs include "AI字幕" for local tracks
+	oldAvail := captionsAvailable
+	defer func() { captionsAvailable = oldAvail }()
+	captionsAvailable = func() bool { return true }
+
+	a.pl.Cue([]netease.Track{*tr})
+	tabs := a.npTabs()
+	found := false
+	for _, tab := range tabs {
+		if tab.label == "AI字幕" && tab.pane == paneCaptions {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Fatalf("expected AI字幕 tab in npTabs for local track, got %+v", tabs)
 	}
 }
