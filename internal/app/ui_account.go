@@ -246,38 +246,26 @@ func (a *app) profileName() string {
 	return a.profile.Nickname
 }
 
-// accountRow sits at the foot of the sidebar: who is signed in, with a
-// dropdown to open their page or the settings or sign out, or a way to
-// sign in.
+// accountRow sits at the foot of the sidebar: clean Apple-style Settings button.
 func (a *app) accountRow(c *ui.Context) {
 	p := a.pal
-	b := ui.ButtonBase(c.Key("account")).Height(40).PaddingX(8).Gap(10).Radius(10).AlignItems(ui.Center).Justify(ui.Start).FocusRing(false)
-	if b.Hovered() || a.accountOpen && a.profile != nil {
+	b := ui.ButtonBase(c.Key("sidebar-settings")).Height(38).PaddingX(10).Gap(10).Radius(10).
+		AlignItems(ui.Center).Justify(ui.Start).FocusRing(false).Label("设置")
+	if b.Hovered() {
 		b.Background(p.hover)
 	}
-	if a.profile == nil {
-		a.accountOpen = false
-		b.Label("登录").Children(func() {
-				ui.Box(c).Size(26, 26).Radius(13).Background(p.press).Center().Children(func() {
-					ui.Icon(c, iconUser).Size(14, 14).TextColor(p.muted)
-				})
-				ui.Text(c, "登录网易云账号").FontSize(13).FontWeight(500).TextColor(p.muted)
-			})
-		if b.Clicked() {
-			a.openLogin()
+	b.Children(func() {
+		ui.Icon(c, iconSettings).Size(16, 16).TextColor(p.muted)
+		ui.Text(c, "设置").FontSize(13).FontWeight(500).TextColor(p.muted).Grow(1)
+		shortcut := "Ctrl+,"
+		if runtime.GOOS == "darwin" {
+			shortcut = "⌘,"
 		}
-		return
-	}
-	prof := a.profile
-	b.Label(prof.Nickname).Expanded(a.accountOpen).Children(func() {
-		a.avatar(c, prof.AvatarURL, 26, p.press)
-		ui.Text(c, prof.Nickname).FontSize(13).FontWeight(600).SingleLine().Grow(1).Shrink(1).MinWidth(0)
-		ui.Icon(c, iconUpDown).Size(13, 13).TextColor(p.faint)
+		ui.Text(c, shortcut).FontSize(11.5).TextColor(p.faint)
 	})
 	if b.Clicked() {
-		a.accountOpen = !a.accountOpen
+		a.openSettings()
 	}
-	a.accountMenu(c, b)
 }
 
 // accountMenu drops up from the account row, as wide as it, in the colors

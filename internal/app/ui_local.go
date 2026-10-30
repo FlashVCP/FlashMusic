@@ -55,13 +55,15 @@ func (a *app) localPage(c *ui.Context) {
 
 func (a *app) localHeader(c *ui.Context) {
 	p := a.pal
-	ui.Column(c).Padding(16, 0, 20, 0).Gap(14).Children(func() {
-		ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
-			ui.Box(c).Size(56, 56).Radius(14).Background(p.accent.Alpha(0.12)).Center().Children(func() {
-				ui.Icon(c, iconFolder).Size(28, 28).TextColor(p.accent)
-			})
-				ui.Column(c).Grow(1).Gap(3).Children(func() {
-					ui.Text(c, "本地音乐").FontSize(28).FontWeight(800).LetterSpacing(-0.5)
+	ui.Column(c).Padding(16, 0, 24, 0).Gap(20).Children(func() {
+		// Row 1: Title and Stats on Left, Segmented Tabs on Right
+		ui.Row(c).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Gap(16).AlignItems(ui.Center).Children(func() {
+				ui.Box(c).Size(52, 52).Radius(14).Background(p.accent.Alpha(0.12)).Center().Children(func() {
+					ui.Icon(c, iconFolder).Size(26, 26).TextColor(p.accent)
+				})
+				ui.Column(c).Gap(3).Children(func() {
+					ui.Text(c, "本地音乐").FontSize(26).FontWeight(800).LetterSpacing(-0.5)
 					sub := fmt.Sprintf("%d 首歌曲", len(a.localTracks))
 					if a.localScanning {
 						sub = "正在扫描本地音乐..."
@@ -73,48 +75,67 @@ func (a *app) localHeader(c *ui.Context) {
 							sub += fmt.Sprintf(" · 智能去重 %d 首副本", a.localDupesCount)
 						}
 					}
-					ui.Text(c, sub).FontSize(13).TextColor(p.muted)
+					ui.Text(c, sub).FontSize(12.5).TextColor(p.muted)
 				})
+			})
+
+			ui.Spacer(c)
+
+			// Categorization Tabs (Float Right)
+			if len(a.localTracks) > 0 {
+				segmented(c.Key("local-tabs"), &a.localTab, "全部单曲", "按专辑", "按歌手", "按文件夹")
+			}
 		})
 
+		// Row 2: Clean Action Toolbar (Primary Capsule + Frosted Action Buttons)
 		ui.Row(c).Gap(10).AlignItems(ui.Center).Children(func() {
 			if len(a.localTracks) > 0 {
-				if pillButton(c.Key("play-all"), iconPlay, "播放全部", p.accent, p.onAccent).Clicked() {
+				playAll := pillButton(c.Key("play-all"), iconPlay, "播放全部", p.accent, p.onAccent).
+					Shadow(0, 4, 14, 0, p.accent.Alpha(0.32))
+				if playAll.Clicked() {
 					if a.pl.Shuffle() {
 						a.pl.ToggleShuffle()
 					}
 					a.pl.PlayQueue(a.localTracks, 0)
 				}
-				if pillButton(c.Key("shuffle-all"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).Clicked() {
+
+				shuffleAll := pillButton(c.Key("shuffle-all"), iconShuffle, "随机播放", p.hover.Over(p.bg), p.text).
+					Border(0.5, p.hairline)
+				if shuffleAll.Clicked() {
 					if !a.pl.Shuffle() {
 						a.pl.ToggleShuffle()
 					}
 					a.pl.PlayQueue(a.localTracks, 0)
 				}
-			}
-				if pillButton(c.Key("add-folder"), iconPlus, "添加文件夹", p.hover.Over(p.bg), p.text).Clicked() {
-					a.addLocalFolder()
-				}
-				if len(a.localDirs) > 0 || len(a.localTracks) > 0 {
-					label := "重新扫描"
-					if a.localScanning {
-						label = "扫描中..."
-					}
-					if pillButton(c.Key("rescan"), iconReload, label, p.hover.Over(p.bg), p.text).Disabled(a.localScanning).Clicked() {
-						a.scanLocalDirs()
-					}
-					if pillButton(c.Key("clear-lib"), iconTrash, "清空曲库", p.hover.Over(p.bg), p.text).Clicked() {
-						a.clearLocalLibrary()
-					}
-				}
-			})
 
-		// Categorization tabs
-		if len(a.localTracks) > 0 {
-			ui.Row(c).AlignItems(ui.Center).Children(func() {
-				segmented(c.Key("local-tabs"), &a.localTab, "全部单曲", "按专辑", "按歌手", "按文件夹")
-			})
-		}
+				// Divider
+				ui.Box(c).Width(1).Height(20).Background(p.hairline).MarginX(4)
+			}
+
+			addFolder := pillButton(c.Key("add-folder"), iconPlus, "添加文件夹", p.hover.Over(p.bg), p.text).
+				Border(0.5, p.hairline)
+			if addFolder.Clicked() {
+				a.addLocalFolder()
+			}
+
+			if len(a.localDirs) > 0 || len(a.localTracks) > 0 {
+				label := "重新扫描"
+				if a.localScanning {
+					label = "扫描中..."
+				}
+				rescan := pillButton(c.Key("rescan"), iconReload, label, p.hover.Over(p.bg), p.text).
+					Border(0.5, p.hairline).Disabled(a.localScanning)
+				if rescan.Clicked() {
+					a.scanLocalDirs()
+				}
+
+				clearLib := pillButton(c.Key("clear-lib"), iconTrash, "清空曲库", ui.RGBA(255, 60, 60, 0.08), ui.Hex("#ff4d4f")).
+					Border(0.5, ui.RGBA(255, 60, 60, 0.2))
+				if clearLib.Clicked() {
+					a.clearLocalLibrary()
+				}
+			}
+		})
 	})
 }
 

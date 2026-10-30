@@ -115,22 +115,24 @@ func roundButton(c *ui.Context, size float32, color ui.Color, label string) ui.E
 
 // pillButton is a rounded button with an icon and a label.
 func pillButton(c *ui.Context, icon *ui.SVG, label string, bg, fg ui.Color) ui.Element {
-	b := ui.ButtonBase(c).Height(36).PaddingX(18).Gap(8).Radius(999).AlignItems(ui.Center).TextColor(fg)
+	b := ui.ButtonBase(c).Height(34).PaddingX(15).Gap(7).Radius(999).AlignItems(ui.Center).TextColor(fg).FocusRing(false)
 	fill := bg
 	if b.Hovered() {
-		fill = bg.Mix(ui.RGB(255, 255, 255), 0.12)
+		fill = bg.Mix(ui.RGB(255, 255, 255), 0.15)
 	}
 	b.Background(b.AnimateColor("bg", fill, ui.Animation{Duration: 120 * time.Millisecond}))
 	pose := ui.Pose{}
 	if b.Pressed() {
-		pose.Scale = 0.96
+		pose.Scale = 0.95
+	} else if b.Hovered() {
+		pose.Y = -0.5
 	}
 	b.AnimatePose(pose, ui.Snappy)
 	b.Children(func() {
 		if icon != nil {
 			ui.Icon(c, icon).Size(14, 14)
 		}
-		ui.Text(c, label).FontSize(14).FontWeight(600).SingleLine()
+		ui.Text(c, label).FontSize(13).FontWeight(600).SingleLine()
 	})
 	return b
 }

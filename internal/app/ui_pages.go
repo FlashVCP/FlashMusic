@@ -33,6 +33,47 @@ func (a *app) section(c *ui.Context, title string) ui.Element {
 	return ui.Text(c, title).FontSize(19).FontWeight(700).LetterSpacing(-0.3).Margin(34, 0, 14, 0)
 }
 
+func (a *app) homeHeading(c *ui.Context, now time.Time) {
+	p := a.pal
+	ui.Row(c).AlignItems(ui.End).Margin(0, 0, 20, 0).Children(func() {
+		// Left: Date & Greeting
+		ui.Column(c).Grow(1).Gap(4).Children(func() {
+			ui.Text(c, fmt.Sprintf("%d月%d日 %s", now.Month(), now.Day(), weekday(now))).
+				FontSize(12).FontWeight(600).TextColor(p.muted).LetterSpacing(0.4)
+			hello := greeting(now)
+			if a.profile != nil {
+				hello += "，" + a.profile.Nickname
+			}
+			ui.Text(c, hello).FontSize(30).FontWeight(700).LetterSpacing(-0.6)
+		})
+
+		// Right: NetEase Account Entrance
+		if a.profile == nil {
+			loginBtn := pillButton(c.Key("home-login-btn"), iconUser, "登录网易云账号", p.hover, p.text).
+				Border(0.5, p.hairline)
+			if loginBtn.Clicked() {
+				a.openLogin()
+			}
+		} else {
+			prof := a.profile
+			chip := ui.ButtonBase(c.Key("home-user-chip")).Height(34).PaddingX(10).Gap(8).Radius(999).
+				Background(p.hover).Border(0.5, p.hairline).AlignItems(ui.Center).FocusRing(false).Label(prof.Nickname)
+			if chip.Hovered() || a.accountOpen {
+				chip.Background(p.press)
+			}
+			chip.Children(func() {
+				a.avatar(c, prof.AvatarURL, 22, p.press)
+				ui.Text(c, prof.Nickname).FontSize(13).FontWeight(600).TextColor(p.text)
+				ui.Icon(c, iconDown).Size(11, 11).TextColor(p.muted)
+			})
+			if chip.Clicked() {
+				a.accountOpen = !a.accountOpen
+			}
+			a.accountMenu(c, chip)
+		}
+	})
+}
+
 func (a *app) homePage(c *ui.Context) {
 	loading := len(a.featured) == 0 && len(a.charts) == 0
 	if loading && !a.homeLoading {
@@ -44,11 +85,7 @@ func (a *app) homePage(c *ui.Context) {
 	ui.Scroll(c.Key("home")).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad, bottom+48, pagePad).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
-		hello := greeting(now)
-		if a.profile != nil {
-			hello += "，" + a.profile.Nickname
-		}
-		a.heading(c, hello, fmt.Sprintf("%d月%d日 %s", now.Month(), now.Day(), weekday(now)))
+		a.homeHeading(c, now)
 		if loading {
 			a.homeSkeleton(c, a.pageShimmer(c))
 			return
