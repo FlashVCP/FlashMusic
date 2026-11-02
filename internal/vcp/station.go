@@ -360,13 +360,13 @@ func GetDramaEpisodePlayURL(drama *DramaItem, epIndex int) string {
 	}
 	epNum := epIndex + 1
 
-	// 1. 如果有专属云端/母带短剧，通过智能自适应通道播放 (本机直通 20ms，外网走全球 CDN)
-	if drama.ID > 0 {
-		cleanTitle := strings.Trim(drama.Title, "[]")
-		fileName := fmt.Sprintf("%s - 第%02d集.mp4", cleanTitle, epNum)
-		mediaHost := resolveMediaHost()
-		return fmt.Sprintf("%s/api/admin/dramas/video/%d/%s?codec=h264", mediaHost, drama.ID, url.PathEscape(fileName))
-	}
+		// 1. 如果有专属云端/母带短剧，通过 2-3-5 阶梯渐进切片通道秒开播放 (探针 180ms 出画，杜绝全量同步转码阻塞)
+		if drama.ID > 0 {
+			cleanTitle := strings.Trim(drama.Title, "[]")
+			fileName := fmt.Sprintf("%s - 第%02d集.mp4", cleanTitle, epNum)
+			mediaHost := resolveMediaHost()
+			return fmt.Sprintf("%s/api/admin/dramas/ladder/%d/%s/index.m3u8?codec=h264", mediaHost, drama.ID, url.PathEscape(fileName))
+		}
 
 	// 2. If episode has video_url
 	if epIndex >= 0 && epIndex < len(drama.Episodes) && drama.Episodes[epIndex].VideoURL != "" {

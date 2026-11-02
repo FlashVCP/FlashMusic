@@ -930,6 +930,22 @@ func (a *app) startDramaEpisode(drama *vcp.DramaItem, epIndex int) {
 	vcp.PrefetchDramaEpisodes(drama.ID, epIndex, 2)
 }
 
+// playNextDramaEpisode advances playback to the next episode of the active drama and updates UI.
+func (a *app) playNextDramaEpisode() {
+	drama := vcp.GetDrama(a.activeDramaID)
+	if drama == nil {
+		return
+	}
+	totalEp := len(drama.Episodes)
+	if totalEp == 0 {
+		totalEp = drama.EpisodeCount
+	}
+	if a.activeEpisodeIndex < totalEp-1 {
+		a.startDramaEpisode(drama, a.activeEpisodeIndex+1)
+		a.redraw()
+	}
+}
+
 // toggleDramaPlay toggles video play/pause for the active short drama.
 func (a *app) toggleDramaPlay() {
 	if a.dramaPlaying {

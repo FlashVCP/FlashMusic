@@ -50,6 +50,11 @@ func (a *app) playVideo(url string) {
 					a.win.SetFullScreen(false)
 					a.redraw()
 				}
+			} else if strings.HasPrefix(e.Title, "mygo:play-next-episode:") {
+				e.PreventDefault()
+				if a.dramaPlaying {
+					a.playNextDramaEpisode()
+				}
 			}
 		})
 	} else {
