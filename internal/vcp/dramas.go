@@ -351,57 +351,97 @@ func GetDramaCoverBytes(id int64) ([]byte, error) {
 
 func loadDramasLocked() {
 	endpoint := GetStationEndpoint()
-	localDownloads := GetLocalDownloadedDramasMap()
 
-	var list []*DramaItem
+	// 1. 先用已验证的真实 36 部母带种子即刻填充内存（0 毫秒即刻返回，UI 线程绝对零阻塞）
+	var list []*DramaItem = defaultRealMasterDramas()
+	cachedDramas = list
+	extractCategoriesLocked()
 
-	// Strategy 1: Try connecting directly to Station Master API
-	if stationList, err := FetchDramasFromStation(endpoint); err == nil && len(stationList) > 0 {
-		list = stationList
+	// 2. 异步在后台静默向香港站长端同步最新目录与本地已下载映射，绝不阻塞 UI 主线程
+	go func() {
+		localDownloads := GetLocalDownloadedDramasMap()
+		stationList, err := FetchDramasFromStation(endpoint)
+		if err == nil && len(stationList) > 0 {
+			dramasMu.Lock()
+			// 刷新本地下载集数状态
+			for _, d := range stationList {
+				if d != nil {
+					if localFiles, ok := localDownloads[d.ID]; ok && len(localFiles) > 0 {
+						d.DownloadedCount = len(localFiles)
+					}
+				}
+			}
+			cachedDramas = stationList
+			extractCategoriesLocked()
+			dramasMu.Unlock()
+		}
+	}()
+}
+
+// extractCategoriesLocked rebuilds the global categories list from the
+// dramas currently in cachedDramas. Callers must hold dramasMu.
+func extractCategoriesLocked() {
+	catMap := map[string]bool{"全部": true}
+	for _, item := range cachedDramas {
+		if item != nil && item.Category != "" {
+			catMap[item.Category] = true
+		}
 	}
+	categories = []string{"全部"}
+	priorityCats := []string{"黄果原创🔥", "都市情感", "爽剧", "动作悬疑", "女频成长", "历史穿越"}
+	for _, pc := range priorityCats {
+		if catMap[pc] {
+			categories = append(categories, pc)
+			delete(catMap, pc)
+		}
+	}
+	delete(catMap, "全部")
+	for c := range catMap {
+		categories = append(categories, c)
+	}
+}
 
-		// Strategy 2: If Station Master API returns no real items, load verified real short drama catalog
-		if len(list) == 0 {
-			list = []*DramaItem{
-				{
-					ID:            7698294694886788121,
-					Title:         "和离后我带女儿横扫魔域",
-					Category:      "漫剧",
-					Tags:          []string{"系统", "玄幻", "异界", "无敌", "高燃"},
-					PlayCount:     91168000,
-					LikeCount:     3820000,
-					FavoriteCount: 1650000,
-					EpisodeCount:  987,
-					DownloadedCount: 987,
-						CoverURL:      "https://origin.flashvcp.org/api/admin/dramas/cover/7698294694886788121.jpg",
-						Description:   "陆清安曾是威震诸天的永夜魔帝，回归烟火生活后带着两个女儿重返魔域，开启轻松热闹的无敌新旅程。全网热播榜 TOP 1。",
-						Origin:        OriginCloud,
-						StreamMode:    "FlashVCP 云端分发 · DePIN 边缘秒开",
-					},
-					{
-						ID:            7696066629439867966,
-						Title:         "一身腱子肉，乱世做谋臣",
-						Category:      "AI 剧",
-						Tags:          []string{"穿越", "争霸", "历史", "谋略"},
-						PlayCount:     18500000,
-						EpisodeCount:  136,
-						DownloadedCount: 136,
-						CoverURL:      "https://origin.flashvcp.org/api/admin/dramas/cover/7696066629439867966.jpg",
-						Origin:        OriginCloud,
-						StreamMode:    "FlashVCP 云端分发 · DePIN 边缘秒开",
-					},
-					{
-						ID:            7695360003212856344,
-						Title:         "亲家母带全家来我家过年",
-						Category:      "AI 剧",
-						Tags:          []string{"家庭", "逆袭", "伦理", "打脸"},
-						PlayCount:     12400000,
-						EpisodeCount:  80,
-						DownloadedCount: 80,
-						CoverURL:      "https://origin.flashvcp.org/api/admin/dramas/cover/7695360003212856344.jpg",
-						Origin:        OriginCloud,
-						StreamMode:    "FlashVCP 云端分发 · DePIN 边缘秒开",
-				},
+func defaultRealMasterDramas() []*DramaItem {
+	return []*DramaItem{
+		{
+			ID:            7698294694886788121,
+			Title:         "和离后我带女儿横扫魔域",
+			Category:      "漫剧",
+			Tags:          []string{"系统", "玄幻", "异界", "无敌", "高燃"},
+			PlayCount:     91168000,
+			LikeCount:     3820000,
+			FavoriteCount: 1650000,
+			EpisodeCount:  987,
+			DownloadedCount: 987,
+			CoverURL:      "https://origin.flashvcp.org/api/admin/dramas/cover/7698294694886788121.jpg",
+			Description:   "陆清安曾是威震诸天的永夜魔帝，回归烟火生活后带着两个女儿重返魔域，开启轻松热闹的无敌新旅程。全网热播榜 TOP 1。",
+			Origin:        OriginCloud,
+			StreamMode:    "FlashVCP 云端分发 · DePIN 边缘秒开",
+		},
+		{
+			ID:            7696066629439867966,
+			Title:         "一身腱子肉，乱世做谋臣",
+			Category:      "AI 剧",
+			Tags:          []string{"穿越", "争霸", "历史", "谋略"},
+			PlayCount:     18500000,
+			EpisodeCount:  136,
+			DownloadedCount: 136,
+			CoverURL:      "https://origin.flashvcp.org/api/admin/dramas/cover/7696066629439867966.jpg",
+			Origin:        OriginCloud,
+			StreamMode:    "FlashVCP 云端分发 · DePIN 边缘秒开",
+		},
+		{
+			ID:            7695360003212856344,
+			Title:         "亲家母带全家来我家过年",
+			Category:      "AI 剧",
+			Tags:          []string{"家庭", "逆袭", "伦理", "打脸"},
+			PlayCount:     12400000,
+			EpisodeCount:  80,
+			DownloadedCount: 80,
+			CoverURL:      "https://origin.flashvcp.org/api/admin/dramas/cover/7695360003212856344.jpg",
+			Origin:        OriginCloud,
+			StreamMode:    "FlashVCP 云端分发 · DePIN 边缘秒开",
+		},
 				{
 					ID:            7698311709634595864,
 					Title:         "分家没我份，破院枯井全是金条",
@@ -583,104 +623,6 @@ func loadDramasLocked() {
 					StreamMode:    "站长本地存储直供 · 1080P 超清",
 				},
 			}
-		}
-
-	if len(list) > 0 {
-		catMap := map[string]bool{"全部": true}
-		localCount := 0
-		cloudCount := 0
-
-		for _, item := range list {
-			if item.ID == 7698294694886788000 {
-				item.ID = 7698294694886788121
-			}
-			// Populate downloaded files from local scanner if not set by Station API
-			if len(item.DownloadedFiles) == 0 {
-				if files, ok := localDownloads[item.ID]; ok {
-					item.DownloadedFiles = files
-					item.DownloadedCount = len(files)
-				}
-			}
-
-			// Three-Tier Origin Classification
-			if item.DownloadedCount > 0 {
-				item.Origin = OriginStation
-				item.StreamMode = "站长本地存储直供 · 0缓冲秒播"
-				localCount++
-			} else if isCloudCategory(item.Category) {
-				item.Origin = OriginCloud
-				item.StreamMode = "FlashVCP Cloud 官方云端聚合 · DePIN 边缘节点加速"
-				cloudCount++
-			} else {
-				item.Origin = OriginCrawler
-				item.StreamMode = "站长自定义程序采集 · 第三方多源聚合"
-				cloudCount++
-			}
-
-			item.StationURL = endpoint
-
-			// Normalize episodes count if empty
-			if item.EpisodeCount == 0 && len(item.Episodes) > 0 {
-				item.EpisodeCount = len(item.Episodes)
-			}
-			if item.EpisodeCount == 0 {
-				item.EpisodeCount = 80
-			}
-
-			// Populate default episodes if not loaded in JSON
-			if len(item.Episodes) == 0 {
-				item.Episodes = make([]EpisodeItem, item.EpisodeCount)
-				for i := 0; i < item.EpisodeCount; i++ {
-					isFree := i < 10
-					coinPrice := 1
-					if isFree {
-						coinPrice = 0
-					}
-					item.Episodes[i] = EpisodeItem{
-						ID:        item.ID*1000 + int64(i+1),
-						DramaID:   item.ID,
-						Number:    i + 1,
-						Title:     fmt.Sprintf("第%d集", i+1),
-						Access:    map[bool]string{true: "free", false: "coin"}[isFree],
-						CoinPrice: coinPrice,
-						Locked:    !isFree,
-					}
-				}
-			}
-			item.LocalCoverPath = GetDramaCoverPath(item.ID)
-			if item.Category != "" {
-				catMap[item.Category] = true
-			}
-		}
-
-		// Update station status numbers
-		stationMu.Lock()
-		stationStatus.TotalDramas = len(list)
-		stationStatus.LocalDramas = localCount
-		stationStatus.CloudDramas = cloudCount
-		stationMu.Unlock()
-
-		cachedDramas = list
-
-		// Rebuild categories
-		categories = []string{"全部"}
-		priorityCats := []string{"黄果原创🔥", "都市情感", "爽剧", "动作悬疑", "女频成长", "历史穿越"}
-		for _, pc := range priorityCats {
-			if catMap[pc] {
-				categories = append(categories, pc)
-				delete(catMap, pc)
-			}
-		}
-		delete(catMap, "全部")
-		for c := range catMap {
-			categories = append(categories, c)
-		}
-		return
-	}
-
-	// Seeded fallback if file is temporarily unreachable
-	cachedDramas = seedFallbackDramas()
-	categories = []string{"全部", "都市情感", "爽剧逆袭", "战神归来", "甜宠爱恋"}
 }
 
 func isCloudCategory(cat string) bool {

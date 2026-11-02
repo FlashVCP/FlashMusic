@@ -49,6 +49,41 @@
 
 ---
 
+## 4. 提交前必须编译通过 (Compile-Before-Commit — 强制)
+
+**任何提交前，必须先本地跑通编译，严禁提交编译不过的代码。**
+
+- 提交前强制执行并确认全部通过：
+  ```bash
+  go build ./...        # 必须 exit 0，不允许任何 package 编译失败
+  go vet ./... 2>&1     # 建议同时跑，排查可疑写法
+  ```
+- **严禁**在 `go build ./...` 报错的状态下 `git commit`。哪怕只有一个子包（如 `internal/vcp`）编译失败也不行。
+- **真实事故（2026-11-02，必须牢记）**：提交 `7a1fd04` 时 `internal/vcp/dramas.go` 编译不过（调用了未定义的 `extractCategoriesLocked`，并混入了一段错位的孤立代码导致语法错误）。由于该包编译失败，`go tool mygo build` **静默复用了上一次成功编译的旧缓存二进制**，使得之后每次"重新打包"分发的都是同一个旧的脏二进制。这直接导致：
+  - 所有后续代码改动（修 PE 结构、改 syso、改元数据）全部没有生效，产物始终是老文件；
+  - 该老二进制早被杀毒软件记入特征缓存，用户安装后反复被报 `Trojan:Win32/Bearfoos.A!ml` / `HEUR/QVM202.*`。
+- **教训**：`mygo build` 显示 "Built ... successfully" **不代表**用的是你最新的源码——如果任一依赖包编译失败，它可能回退到缓存。因此发布前必须：
+  1. 先 `go build ./...` 确认全绿；
+  2. 构建后核对产物二进制的 SHA256 与源码改动一致（新代码必然产生新哈希）。
+
+## 5. 杀毒误报的正确排查顺序 (Antivirus False-Positive Triage — 强制)
+
+当 Windows Defender / 360 等报 FlashMusic 为病毒（`!ml`、`HEUR`、`QVM` 等机器学习/启发式名称）时，**先按以下顺序排查，禁止上来就瞎改 PE 结构、加壳参数或删业务代码**：
+
+1. **先确认编译是否真通过**：`go build ./...`。编译失败 → 产物是脏缓存，先修编译（见第 4 节），这是最高频根因。
+2. **核对产物哈希**：重新构建后，产物 `FlashMusic.exe` 的 SHA256 必须变化。若没变，说明在分发旧缓存文件。
+3. **隔离对照实验**：分别把 `internal/speech`、`internal/netease`、`internal/vcp`、完整 app 编译成独立二进制，逐个扫描，定位真正触发模块——不要凭猜测归因。
+4. **区分"文件静态内容报毒"与"安装/运行行为被拦"**：先扫桌面上的独立文件，再做完整安装后扫描；报毒记录里的文件路径指向哪个文件，就查哪个。
+5. 只有在确认是**无签名可执行文件本身**被 ML 引擎误判后，才考虑：代码签名证书（Windows Authenticode，**不是** Apple 证书）或向微软/360 提交误报申诉。
+
+**禁止**：在未定位根因前，盲目修改 `mygo` 模块源码（go module cache）、删除业务模块、或声称"已彻底解决"而无实机验证证据。
+
+## 6. 远程验证的会话隔离注意 (Remote Session Caveat)
+
+通过 SSH 远程在 Windows 上启动 GUI 程序时，SSH 进程通常在 **Session 0**（服务会话，无可见桌面），启动的窗口画在用户看不见的桌面上，且 `MainWindowHandle` 可能为 0。**这不代表程序打不开**。要验证 GUI 是否正常显示，必须让用户在其登录的交互桌面会话中双击运行，或用计划任务 `/IT` 投递到交互会话——不要仅凭 SSH 侧的 `hwnd=0` 判定程序有问题。
+
+---
+
 ## Tests
 
 Only write a test for behaviour that can actually break. If the code under test could change without the test noticing, or the test would fail on a harmless rewording, don't write it.
