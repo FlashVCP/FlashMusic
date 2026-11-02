@@ -295,9 +295,9 @@ func (a *app) showMain() {
 
 // Run runs the app until it quits.
 func Run() error {
-	// Enable HEVC / H.265 hardware and platform decoding in embedded WebView2
+	// Enable HEVC / H.265 hardware decoding and allow seamless autoplay in embedded WebView2
 	if os.Getenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS") == "" {
-		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--enable-features=PlatformHEVCDecoderSupport")
+		_ = os.Setenv("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--enable-features=PlatformHEVCDecoderSupport --autoplay-policy=no-user-gesture-required")
 	}
 
 	a := &app{
@@ -307,10 +307,10 @@ func Run() error {
 		artists:    map[int64]*artistData{},
 		albums:     map[int64]*albumData{},
 		users:      map[int64]*userData{},
-			podcasts:            map[int64]*podcastData{},
-			podcastTab:          &podcastTab{},
-			route:               route{page: pageDramas},
-			activeDramaTab:      0,
+		podcasts:   map[int64]*podcastData{},
+		podcastTab: &podcastTab{},
+		route:      route{page: pageHome},
+		activeDramaTab:      0,
 			nowPlaying:          false,
 			npPane:              paneLyrics,
 			searches:            map[route]*searchData{},

@@ -3,6 +3,7 @@ package vcp
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
@@ -340,6 +341,18 @@ func GetShortVideoEmbedURLWithNext(v *ShortVideoItem, next *ShortVideoItem) stri
 	return embedURL
 }
 
+// resolveMediaHost determines whether to stream via instant local loopback or global public CDN.
+func resolveMediaHost() string {
+	// If running on the master PC where 8901 is active, use instant localhost loopback (20ms latency)
+	conn, err := net.DialTimeout("tcp", "127.0.0.1:8901", 120*time.Millisecond)
+	if err == nil {
+		_ = conn.Close()
+		return "http://127.0.0.1:8901"
+	}
+	// External test machines and remote users route seamlessly via Cloudflare CDN
+	return "https://origin.flashvcp.org"
+}
+
 // GetDramaEpisodePlayURL returns the HTTP 206 streaming URL for a specific episode of a drama.
 func GetDramaEpisodePlayURL(drama *DramaItem, epIndex int) string {
 	if drama == nil {
@@ -347,11 +360,12 @@ func GetDramaEpisodePlayURL(drama *DramaItem, epIndex int) string {
 	}
 	epNum := epIndex + 1
 
-	// 1. 如果有专属云端/母带短剧，通过站长统一点播通道或 CDN 播放 (默认启用阶梯渐进切片流以获得 0.15s 秒开体验)
+	// 1. 如果有专属云端/母带短剧，通过智能自适应通道播放 (本机直通 20ms，外网走全球 CDN)
 	if drama.ID > 0 {
 		cleanTitle := strings.Trim(drama.Title, "[]")
 		fileName := fmt.Sprintf("%s - 第%02d集.mp4", cleanTitle, epNum)
-		return fmt.Sprintf("https://origin.flashvcp.org/api/admin/dramas/ladder/%d/%s/index.m3u8?codec=h264", drama.ID, url.PathEscape(fileName))
+		mediaHost := resolveMediaHost()
+		return fmt.Sprintf("%s/api/admin/dramas/video/%d/%s?codec=h264", mediaHost, drama.ID, url.PathEscape(fileName))
 	}
 
 	// 2. If episode has video_url
@@ -376,8 +390,7 @@ func GetDramaEpisodeEmbedURL(drama *DramaItem, epIndex int) string {
 		return ""
 	}
 
-	// 纯净播放内核由全球 CDN (origin.flashvcp.org) 统一承载，彻底告别本地端口依赖
-	playerHost := "https://origin.flashvcp.org"
+	playerHost := resolveMediaHost()
 
 	epNum := epIndex + 1
 	title := fmt.Sprintf("%s - 第%d集", drama.Title, epNum)
@@ -399,13 +412,13 @@ func GetDramaEpisodeEmbedURL(drama *DramaItem, epIndex int) string {
 		}
 	}
 
-		embedURL := fmt.Sprintf("%s/player/embed?src=%s&title=%s&type=%s&autoplay=1",
-			playerHost, url.QueryEscape(playURL), url.QueryEscape(title), mediaType)
-		if nextSrc != "" {
-			embedURL += fmt.Sprintf("&next_src=%s", url.QueryEscape(nextSrc))
-		}
-		return embedURL
+	embedURL := fmt.Sprintf("%s/player/embed?src=%s&title=%s&type=%s&autoplay=1",
+		playerHost, url.QueryEscape(playURL), url.QueryEscape(title), mediaType)
+	if nextSrc != "" {
+		embedURL += fmt.Sprintf("&next_src=%s", url.QueryEscape(nextSrc))
 	}
+	return embedURL
+}
 
 // PrefetchDramaEpisodes notifies the media origin server to pre-cache upcoming episodes.
 func PrefetchDramaEpisodes(dramaID int64, epIndex, lookahead int) {
