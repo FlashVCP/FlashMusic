@@ -176,6 +176,23 @@ func (a *app) coverPoster(c *ui.Context, url string, w, h, radius float32) ui.El
 	return box
 }
 
+// coverPosterFill fills its parent container with a rectangular poster, clipping by radius.
+func (a *app) coverPosterFill(c *ui.Context, url string, radius float32) {
+	p := a.pal
+	box := ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(radius).Center().Clip()
+	bmp := bitmap(a.art.get(url, false))
+	in := artIn(box, bmp)
+	if in < 1 {
+		box.Background(p.hover)
+	}
+	box.Children(func() {
+		if in < 1 {
+			ui.Icon(c, iconClapperboard).Size(40, 40).TextColor(p.faint).Opacity(1 - in)
+		}
+		artImage(c, bmp, radius, in)
+	})
+}
+
 // coverBackdrop displays a full-bleed backdrop covering its entire parent with Cover fit.
 func (a *app) coverBackdrop(c *ui.Context, url string) ui.Element {
 	p := a.pal

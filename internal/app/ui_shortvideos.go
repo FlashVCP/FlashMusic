@@ -132,7 +132,8 @@ func (a *app) shortVideosPage(c *ui.Context) {
 			return
 		}
 
-		ui.Row(c.Key("sv-feed-grid")).Wrap().Gap(18).Margin(4, 0, 0, 0).Children(func() {
+		cols := a.columns(c, 210)
+		ui.Grid(c.Key("sv-feed-grid")).Columns(cols).GapX(18).GapY(26).Margin(4, 0, 0, 0).Children(func() {
 			for i, v := range videos {
 				item := v
 				var next *vcp.ShortVideoItem
@@ -151,23 +152,30 @@ func (a *app) shortVideosPage(c *ui.Context) {
 // shortVideoCard renders a sleek 9:16 mobile-proportioned vertical video card with full-bleed poster.
 func (a *app) shortVideoCard(c *ui.Context, item *vcp.ShortVideoItem, next *vcp.ShortVideoItem) {
 	p := a.pal
-	cardW := float32(220)
-	cardH := float32(350) // 严格遵循 9:16 移动竖屏美学黄金比例
 
-	btn := ui.ButtonBase(c.Key("sv-card-" + item.ID)).
-		Width(cardW).Height(cardH).Radius(14).Clip().
-		Background(p.card).Border(1, p.hairline).FocusRing(false)
+	card := ui.ButtonBase(c.Key("sv-card-" + item.ID)).
+		Column().Gap(0).AlignItems(ui.Stretch).Justify(ui.Start).FocusRing(false).Label(item.Title)
 
-	hovered := btn.Hovered()
-	if hovered {
-		btn.Border(1.5, p.accent.Alpha(0.7))
-	}
+	hovered := card.Hovered()
 
-	btn.Children(func() {
-		ui.Box(c).Fill().Children(func() {
+	card.Children(func() {
+		// 9:16 mobile aspect ratio poster frame
+		art := ui.Box(c).AspectRatio(9.0 / 16.0).Radius(14).Clip()
+		lift := ui.Pose{}
+		if hovered {
+			lift = ui.Pose{Y: -4}
+			art.Shadow(0, 14, 28, -4, p.cardShade)
+			art.Border(1.5, p.accent.Alpha(0.6))
+		} else {
+			art.Shadow(0, 2, 8, -2, p.cardShade)
+			art.Border(1, p.hairline)
+		}
+		art.AnimatePose(lift, ui.Snappy)
+
+		art.Children(func() {
 			// 1. Full-Bleed Vertical Cover Poster
 			if item.CoverURL != "" {
-				a.coverPoster(c, item.CoverURL, cardW, cardH, 0)
+				a.coverPosterFill(c, item.CoverURL, 14)
 			} else {
 				ui.Box(c).Fill().Background(ui.Hex("#18181c")).Center().Children(func() {
 					ui.Icon(c, iconPlay).Size(40, 40).TextColor(p.faint)
@@ -175,9 +183,9 @@ func (a *app) shortVideoCard(c *ui.Context, item *vcp.ShortVideoItem, next *vcp.
 			}
 
 			// 2. Top Bar: Category Pill & Duration Badge
-			ui.Row(c).Absolute().Top(10).Left(10).Right(10).AlignItems(ui.Center).Children(func() {
+			ui.Row(c).Absolute().Top(8).Left(8).Right(8).AlignItems(ui.Center).Children(func() {
 				if item.Category != "" {
-					ui.Box(c).Padding(3, 8, 3, 8).Radius(6).
+					ui.Box(c).Padding(2.5, 7).Radius(6).
 						Background(ui.RGBA(15, 23, 42, 0.75)).Border(0.5, ui.RGBA(255, 255, 255, 0.2)).Children(func() {
 						ui.Text(c, item.Category).FontSize(10.5).FontWeight(600).TextColor(white)
 					})
@@ -186,7 +194,7 @@ func (a *app) shortVideoCard(c *ui.Context, item *vcp.ShortVideoItem, next *vcp.
 				ui.Spacer(c)
 
 				if item.Duration != "" {
-					ui.Box(c).Padding(3, 8, 3, 8).Radius(6).
+					ui.Box(c).Padding(2.5, 7).Radius(6).
 						Background(ui.RGBA(15, 23, 42, 0.75)).Border(0.5, ui.RGBA(255, 255, 255, 0.2)).Children(func() {
 						ui.Text(c, item.Duration).FontSize(10.5).FontWeight(600).TextColor(white)
 					})
@@ -194,14 +202,18 @@ func (a *app) shortVideoCard(c *ui.Context, item *vcp.ShortVideoItem, next *vcp.
 			})
 
 			// 3. Center Glowing Play Badge on Hover
+			playBtn := ui.Box(c).Absolute().Fill().Center()
+			playPose := ui.Pose{Fade: 0, Scale: 0.8}
 			if hovered {
-				ui.Box(c).Fill().Background(ui.RGBA(0, 0, 0, 0.35)).Center().Children(func() {
-					ui.Box(c).Size(50, 50).Radius(25).Background(p.accent).Center().
-						Shadow(0, 4, 16, 0, p.accent.Alpha(0.6)).Children(func() {
-						ui.Icon(c, iconPlay).Size(22, 22).TextColor(p.onAccent)
-					})
-				})
+				playPose = ui.Pose{Fade: 1, Scale: 1.08}
 			}
+			playBtn.AnimatePose(playPose, ui.Snappy)
+			playBtn.Children(func() {
+				ui.Box(c).Size(48, 48).Radius(24).Background(p.accent).Center().
+					Shadow(0, 4, 16, 0, p.accent.Alpha(0.65)).Children(func() {
+					ui.Icon(c, iconPlay).Size(20, 20).TextColor(p.onAccent).Margin(0, 0, 0, 2)
+				})
+			})
 
 			// 4. Bottom Smooth 3-Stop Dark Glass Gradient Overlay
 			ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(110).Padding(12, 12, 12, 12).
@@ -215,7 +227,7 @@ func (a *app) shortVideoCard(c *ui.Context, item *vcp.ShortVideoItem, next *vcp.
 				}).Children(func() {
 				ui.Column(c).Fill().Justify(ui.End).Gap(6).Children(func() {
 					// Title
-					ui.Text(c, item.Title).FontSize(13.5).FontWeight(700).TextColor(white).MaxLines(2)
+					ui.Text(c, item.Title).FontSize(13.5).FontWeight(700).TextColor(white).MaxLines(2).LineHeight(1.3)
 
 					// Author & View Count Row
 					ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
@@ -236,7 +248,7 @@ func (a *app) shortVideoCard(c *ui.Context, item *vcp.ShortVideoItem, next *vcp.
 		})
 	})
 
-	if btn.Clicked() {
+	if card.Clicked() {
 		a.activeSVID = item.ID
 		a.svPlaying = true
 		if a.pl != nil && a.pl.Playing() {

@@ -684,62 +684,50 @@ func loadDramasLocked() {
 }
 
 func isCloudCategory(cat string) bool {
-	return strings.Contains(cat, "黄果原创") ||
-		strings.Contains(cat, "AI成人") ||
-		strings.Contains(cat, "AI魔改") ||
-		strings.Contains(cat, "官方") ||
+	return strings.Contains(cat, "官方") ||
 		strings.Contains(cat, "独播")
 }
 
 func seedFallbackDramas() []*DramaItem {
 	return []*DramaItem{
 		{
-			ID:           539,
-			Title:        "替嫁将军府",
-			Category:     "黄果原创🔥",
-			Tags:         []string{"后宫", "逆袭", "古风"},
-			PlayCount:    450770,
-			LikeCount:    53680,
-			EpisodeCount: 80,
-			Origin:       OriginStation,
-			StreamMode:   "站长自营 0 缓冲直出",
-			Description:  "替嫁入将军府，等她的竟是满府刁难与陷害！且看她如何凭借现代医术与智谋，步步逆风翻盘，俘获冷面将军的真心。",
+			ID:              7698294694886788121,
+			Title:           "和离后我带女儿横扫魔域",
+			Category:        "漫剧",
+			Tags:            []string{"系统", "玄幻", "异界", "无敌", "高燃"},
+			PlayCount:       91168000,
+			LikeCount:       3820000,
+			EpisodeCount:    987,
+			DownloadedCount: 987,
+			Origin:          OriginCloud,
+			StreamMode:      "FlashVCP 云端分发 · DePIN 边缘秒开",
+			Description:     "陆清安曾是威震诸天的永夜魔帝，回归烟火生活后带着两个女儿重返魔域，开启轻松热闹的无敌新旅程。全网热播榜 TOP 1。",
 		},
 		{
-			ID:           535,
-			Title:        "崩老头的萝莉三姐妹",
-			Category:     "都市情感",
-			Tags:         []string{"甜宠", "爆笑", "治愈"},
-			PlayCount:    328000,
-			LikeCount:    41200,
-			EpisodeCount: 60,
-			Origin:       OriginStation,
-			StreamMode:   "站长自营 0 缓冲直出",
-			Description:  "机缘巧合下收养了三位性格迥异的天才萌妹，平凡大叔的人生彻底被掀翻！笑中带泪的合租日常温馨上演。",
+			ID:              7701226234214108185,
+			Title:           "聚宝仙盆之杂灵根才是真BOSS第十五季",
+			Category:        "漫剧",
+			Tags:            []string{"热播", "仙侠", "玄幻"},
+			PlayCount:       52100000,
+			LikeCount:       2140000,
+			EpisodeCount:    300,
+			DownloadedCount: 300,
+			Origin:          OriginCloud,
+			StreamMode:      "FlashVCP 云端分发 · DePIN 边缘秒开",
+			Description:     "杂灵根少年机缘巧合获得上古聚宝仙盆，万千灵宝信手拈来，逆天改命横扫八荒！",
 		},
 		{
-			ID:           538,
-			Title:        "风华神女录",
-			Category:     "黄果原创🔥",
-			Tags:         []string{"玄幻", "仙侠", "热血"},
-			PlayCount:    689000,
-			LikeCount:    89000,
-			EpisodeCount: 100,
-			Origin:       OriginCloud,
-			StreamMode:   "FlashVCP Cloud 边缘节点加速",
-			Description:  "九重天界神女浴火重生，重返人间涤荡诸魔，执掌天地神兵，开启无敌征途！",
-		},
-		{
-			ID:           472,
-			Title:        "暗黑金庸：绝顶霸主",
-			Category:     "爽剧",
-			Tags:         []string{"武侠", "穿越", "无敌"},
-			PlayCount:    521000,
-			LikeCount:    67300,
-			EpisodeCount: 75,
-			Origin:       OriginCrawler,
-			StreamMode:   "站长全网采集通道",
-			Description:  "带着满级武学模拟器穿越暗黑江湖，九阳大圆满，凌波微步踏平各大门派，唯我独尊！",
+			ID:              7701567939715025944,
+			Title:           "满院亲戚全是上古大妖第六季",
+			Category:        "漫剧",
+			Tags:            []string{"轻松", "搞笑", "大妖", "无敌"},
+			PlayCount:       43800000,
+			LikeCount:       1890000,
+			EpisodeCount:    272,
+			DownloadedCount: 272,
+			Origin:          OriginCloud,
+			StreamMode:      "FlashVCP 云端分发 · DePIN 边缘秒开",
+			Description:     "看似普通的乡村小院，七大姑八大姨竟然全是沉睡万年的洪荒上古大妖！",
 		},
 	}
 }

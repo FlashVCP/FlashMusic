@@ -12,72 +12,103 @@ import (
 // dramasPage is the main view for 视界中心 -> 微短剧场.
 func (a *app) dramasPage(c *ui.Context) {
 	top, bottom := a.insets(c)
-	p := a.pal
 
-	ui.Column(c.Key("dramas-page")).Fill().Padding(top+pageGap, pagePad-8, bottom+32, pagePad-8).Children(func() {
+	if a.activeDramaTab == 1 {
+		// 剧场播放模式：固定沉浸式影院舞台与右侧抽屉，不进行全页垂直滚动
+		ui.Column(c.Key("dramas-theater-page")).Fill().Padding(top+pageGap, pagePad-8, bottom+32, pagePad-8).Children(func() {
+			a.startMark(c)
+			defer a.endMark(c)
+			a.dramasHeaderBar(c)
+			a.dramaTheater(c)
+		})
+		return
+	}
+
+	// 精选大厅与追剧历史：采用丝滑全页面滚动容器，容纳大剧目海报流
+	ui.Scroll(c.Key("dramas-scroll-page")).TrackScroll(&a.pageScroll).Grow(1).
+		Padding(top+pageGap, pagePad-8, bottom+32, pagePad-8).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
-
-		// Page Header
-		ui.Row(c.Key("dramas-header")).AlignItems(ui.Center).Gap(14).Margin(0, 0, 16, 0).Children(func() {
-			// Title & Icon
-			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-				ui.Icon(c, iconClapperboard).Size(22, 22).TextColor(p.accent)
-				ui.Text(c, "微短剧场").FontSize(20).FontWeight(700).TextColor(p.text)
-			})
-
-			// Sub Tabs: 精选大厅 / 剧场播放 / 追剧历史
-			tabs := []string{"精选大厅", "剧场播放", "追剧历史"}
-			ui.Row(c.Key("dramas-tabs")).Gap(6).Children(func() {
-				for i, tab := range tabs {
-					tabIdx := i
-					active := a.activeDramaTab == tabIdx
-					btn := pillButton(c.Key("tab-"+tab), nil, tab, p.hover, p.text)
-					if active {
-						btn.Background(p.accent.Alpha(0.12)).TextColor(p.accent).Border(1, p.accent.Alpha(0.35))
-					} else {
-						btn.Background(p.card).TextColor(p.muted).Border(1, p.hairline)
-					}
-						if btn.Clicked() {
-							a.activeDramaTab = tabIdx
-							if tabIdx != 1 && a.dramaPlaying {
-								a.stopVideo()
-							}
-							if tabIdx == 1 && a.pl != nil && a.pl.Playing() {
-								a.pl.TogglePlay()
-							}
-						}
-				}
-			})
-
-			ui.Spacer(c)
-
-			// Real-time Search Box
-			searchField := ui.Row(c.Key("drama-search-box")).Height(30).PaddingX(10).Gap(6).Radius(15).
-				AlignItems(ui.Center).Width(220).Background(p.card).Border(1, p.hairline)
-			searchField.Children(func() {
-				ui.Icon(c, iconSearch).Size(14, 14).TextColor(p.faint)
-				ui.TextInput(c.Key("drama-query"), &a.dramaQuery).
-					Placeholder("搜索剧名、标签、主角...").FontSize(12.5).Label("搜索剧目").
-					Grow(1).MinWidth(0)
-
-				if a.dramaQuery != "" {
-					if iconButton(c.Key("clear-dq"), iconX, 12, p.muted, "清除").Size(16, 16).Clicked() {
-						a.dramaQuery = ""
-					}
-				}
-			})
-		})
-
-		// Tab Body
+		a.dramasHeaderBar(c)
 		switch a.activeDramaTab {
-		case 1:
-			a.dramaTheater(c)
 		case 2:
 			a.dramasHistory(c)
 		default:
 			a.dramasHall(c)
 		}
+	})
+}
+
+// dramasHeaderBar renders the unified top navigation for 微短剧场.
+func (a *app) dramasHeaderBar(c *ui.Context) {
+	p := a.pal
+	ui.Row(c.Key("dramas-header")).AlignItems(ui.Center).Gap(14).Margin(0, 0, 18, 0).Children(func() {
+		// Title & Icon
+		ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+			ui.Icon(c, iconClapperboard).Size(22, 22).TextColor(p.accent)
+			ui.Text(c, "微短剧场").FontSize(20).FontWeight(700).TextColor(p.text)
+		})
+
+		// Sub Tabs: 精选大厅 / 剧场播放 / 追剧历史
+		tabs := []struct {
+			name string
+			idx  int
+		}{
+			{"精选大厅", 0},
+			{"剧场播放", 1},
+			{"追剧历史", 2},
+		}
+		ui.Row(c.Key("dramas-tabs")).Gap(6).Children(func() {
+			for _, tab := range tabs {
+				tabIdx := tab.idx
+				tabName := tab.name
+				active := a.activeDramaTab == tabIdx
+				btn := ui.ButtonBase(c.Key("tab-" + tabName)).Height(30).PaddingX(14).Radius(999).
+					AlignItems(ui.Center).FocusRing(false).Label(tabName)
+				if active {
+					btn.Background(p.accent).TextColor(p.onAccent)
+				} else {
+					btn.Background(p.card).TextColor(p.muted).Border(1, p.hairline)
+					if btn.Hovered() {
+						btn.Background(p.hover).TextColor(p.text)
+					}
+				}
+				btn.Children(func() {
+					weight := 500
+					if active {
+						weight = 700
+					}
+					ui.Text(c, tabName).FontSize(12.5).FontWeight(weight)
+				})
+				if btn.Clicked() {
+					a.activeDramaTab = tabIdx
+					if tabIdx != 1 && a.dramaPlaying {
+						a.stopVideo()
+					}
+					if tabIdx == 1 && a.pl != nil && a.pl.Playing() {
+						a.pl.TogglePlay()
+					}
+				}
+			}
+		})
+
+		ui.Spacer(c)
+
+		// Real-time Search Box with Pill border
+		searchField := ui.Row(c.Key("drama-search-box")).Height(32).PaddingX(12).Gap(8).Radius(16).
+			AlignItems(ui.Center).Width(240).Background(p.card).Border(1, p.hairline)
+		searchField.Children(func() {
+			ui.Icon(c, iconSearch).Size(14, 14).TextColor(p.faint)
+			ui.TextInputBase(c.Key("drama-query"), &a.dramaQuery).
+				Placeholder("搜索剧名、标签、主角...").FontSize(12.5).Label("搜索剧目").
+				Grow(1).MinWidth(0)
+
+			if a.dramaQuery != "" {
+				if iconButton(c.Key("clear-dq"), iconX, 12, p.muted, "清除").Size(16, 16).Clicked() {
+					a.dramaQuery = ""
+				}
+			}
+		})
 	})
 }
 
@@ -94,7 +125,7 @@ func (a *app) dramasHall(c *ui.Context) {
 
 	filtered := vcp.FilterDramasTaxonomy(a.dramaType, a.dramaRanking, a.dramaCategory, a.dramaQuery)
 
-	ui.Column(c.Key("hall-view")).Gap(12).Children(func() {
+	ui.Column(c.Key("hall-view")).Gap(14).Children(func() {
 		// Tier 1: Main Type Tabs (全部 | 漫剧 | 真人剧 | AI剧 | 演员) - 对齐站长端默认栏目
 		ui.Row(c.Key("type-bar")).AlignItems(ui.Center).Gap(20).Padding(0, 4, 4, 4).Children(func() {
 			for _, dt := range tax.Types {
@@ -109,15 +140,17 @@ func (a *app) dramasHall(c *ui.Context) {
 				if active {
 					textColor = p.text
 					weight = 700
-					size = 16
+					size = 15.5
+				} else if btn.Hovered() {
+					textColor = p.text
 				}
 				btn.Children(func() {
-					ui.Column(c).AlignItems(ui.Center).Gap(3).Children(func() {
+					ui.Column(c).AlignItems(ui.Center).Gap(4).Children(func() {
 						ui.Text(c, typeName).FontSize(size).FontWeight(weight).TextColor(textColor)
 						if active {
-							ui.Box(c).Width(24).Height(2.5).Radius(1.5).Background(p.accent)
+							ui.Box(c).Width(24).Height(3).Radius(1.5).Background(p.accent)
 						} else {
-							ui.Box(c).Height(2.5)
+							ui.Box(c).Height(3)
 						}
 					})
 				})
@@ -127,23 +160,24 @@ func (a *app) dramasHall(c *ui.Context) {
 			}
 		})
 
-		// Tier 2: Rankings & Badges Bar (推荐榜 | 热播榜 | 臻果榜 | 预约榜 | 新剧榜 | 热搜榜 | 追更榜 | 必看榜 | 收藏榜)
+		// Tier 2: Rankings & Badges Bar (推荐榜 | 热播榜 | 臻果榜 | 预约榜 | 新剧榜 | 追更榜 | 必看榜 | 收藏榜)
 		ui.Row(c.Key("rankings-bar")).AlignItems(ui.Center).Gap(8).Wrap().Children(func() {
 			for _, rk := range tax.Rankings {
 				rkName := rk
 				active := a.dramaRanking == rkName
 				btn := ui.ButtonBase(c.Key("rk-" + rkName)).Height(28).PaddingX(12).Radius(14).
-					AlignItems(ui.Center).FocusRing(false)
+					AlignItems(ui.Center).FocusRing(false).Label(rkName)
 
 				bg := p.card
 				border := p.hairline
 				fg := p.muted
 				if active {
-					bg = p.accent.Alpha(0.12)
+					bg = p.accent.Alpha(0.15)
 					border = p.accent.Alpha(0.4)
 					fg = p.accent
 				} else if btn.Hovered() {
 					bg = p.hover
+					fg = p.text
 				}
 				btn.Background(bg).Border(1, border)
 				btn.Children(func() {
@@ -167,12 +201,19 @@ func (a *app) dramasHall(c *ui.Context) {
 			for _, cat := range tax.Genres {
 				catName := cat
 				isActive := (a.dramaCategory == "" && catName == "全部") || a.dramaCategory == catName
-				btn := pillButton(c.Key("cat-"+catName), nil, catName, p.hover, p.text)
+				btn := ui.ButtonBase(c.Key("cat-" + catName)).Height(26).PaddingX(11).Radius(999).
+					AlignItems(ui.Center).FocusRing(false).Label(catName)
 				if isActive {
-					btn.Background(p.accent).TextColor(p.onAccent).Border(0, ui.Transparent)
+					btn.Background(p.accent).TextColor(p.onAccent)
 				} else {
 					btn.Background(p.card).TextColor(p.muted).Border(1, p.hairline)
+					if btn.Hovered() {
+						btn.Background(p.hover).TextColor(p.text)
+					}
 				}
+				btn.Children(func() {
+					ui.Text(c, catName).FontSize(11.5).FontWeight(map[bool]int{true: 700, false: 500}[isActive])
+				})
 				if btn.Clicked() {
 					if catName == "全部" {
 						a.dramaCategory = ""
@@ -189,7 +230,7 @@ func (a *app) dramasHall(c *ui.Context) {
 			a.dramaHeroBanner(c, hero)
 		}
 
-		// Drama Cards Grid
+		// Drama Cards Grid (Responsive multi-column standard grid)
 		if len(filtered) == 0 {
 			ui.Box(c).Height(180).Center().Children(func() {
 				ui.Text(c, "未找到符合条件的剧目，换个分类或榜单试试吧").FontSize(14).TextColor(p.muted)
@@ -197,7 +238,8 @@ func (a *app) dramasHall(c *ui.Context) {
 			return
 		}
 
-		ui.Row(c.Key("drama-grid")).Wrap().Gap(14).Children(func() {
+		cols := a.columns(c, 190)
+		ui.Grid(c.Key("drama-grid")).Columns(cols).GapX(18).GapY(28).Children(func() {
 			for _, item := range filtered {
 				drama := item
 				a.dramaCard(c, drama)
@@ -209,8 +251,8 @@ func (a *app) dramasHall(c *ui.Context) {
 // dramaHeroBanner renders a high-impact horizontal billboard for the top featured drama.
 func (a *app) dramaHeroBanner(c *ui.Context, hero *vcp.DramaItem) {
 	p := a.pal
-	card := ui.Box(c.Key("hero-banner")).Height(215).Radius(14).
-		Background(p.card).Border(1, p.hairline).Padding(16, 20, 16, 20)
+	card := ui.Box(c.Key("hero-banner")).Height(210).Radius(14).
+		Background(p.card).Border(1, p.hairline).Padding(16, 20, 16, 20).Margin(0, 0, 10, 0)
 
 	card.Children(func() {
 		ui.Row(c).Fill().AlignItems(ui.Center).Gap(20).Children(func() {
@@ -220,41 +262,44 @@ func (a *app) dramaHeroBanner(c *ui.Context, hero *vcp.DramaItem) {
 
 			// Info
 			ui.Column(c).Grow(1).Gap(8).Children(func() {
-					ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
-						ui.Box(c).Padding(3, 8, 3, 8).Radius(4).Background(p.accent).Children(func() {
-							ui.Text(c, "🔥 全网热播 TOP 1").FontSize(11).FontWeight(700).TextColor(p.onAccent)
-						})
-						if hero.Category != "" {
-							ui.Box(c).Padding(3, 8, 3, 8).Radius(4).Background(p.hover).Children(func() {
-								ui.Text(c, hero.Category).FontSize(11.5).TextColor(p.text)
-							})
-						}
-						ui.Box(c).Padding(3, 8, 3, 8).Radius(4).Background(p.bg).Border(1, p.hairline).Children(func() {
-							ui.Text(c, fmt.Sprintf("%d 集全 · 1080P 超清", hero.EpisodeCount)).FontSize(11.5).TextColor(p.muted)
-						})
+				ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+					ui.Box(c).Padding(3, 8, 3, 8).Radius(4).Background(p.accent).Children(func() {
+						ui.Text(c, "🔥 全网热播 TOP 1").FontSize(11).FontWeight(700).TextColor(p.onAccent)
 					})
-
-					ui.Text(c, hero.Title).FontSize(23).FontWeight(700).TextColor(p.text)
-					desc := hero.Description
-					if len([]rune(desc)) > 110 {
-						desc = string([]rune(desc)[:110]) + "..."
+					if hero.Category != "" {
+						ui.Box(c).Padding(3, 8, 3, 8).Radius(4).Background(p.hover).Children(func() {
+							ui.Text(c, hero.Category).FontSize(11.5).TextColor(p.text)
+						})
 					}
-					ui.Text(c, desc).FontSize(12.5).TextColor(p.muted)
-
-					ui.Row(c).AlignItems(ui.Center).Gap(12).Margin(4, 0, 0, 0).Children(func() {
-						playBtn := pillButton(c.Key("hero-play"), iconPlay, "立即播放（PC 宽屏影院）", p.accent, p.onAccent)
-						if playBtn.Clicked() {
-							a.dramaWidescreenMode = true
-							a.startDramaEpisode(hero, 0)
-						}
-
-						p916Btn := pillButton(c.Key("hero-916"), iconAspectRatio, "📱 9:16 竖屏模式", p.hover, p.text).
-							Border(1, p.hairline)
-						if p916Btn.Clicked() {
-							a.dramaWidescreenMode = false
-							a.startDramaEpisode(hero, 0)
-						}
+					ui.Box(c).Padding(3, 8, 3, 8).Radius(4).Background(p.bg).Border(1, p.hairline).Children(func() {
+						ui.Text(c, fmt.Sprintf("%d 集全 · 1080P 超清", hero.EpisodeCount)).FontSize(11.5).TextColor(p.muted)
 					})
+					ui.Box(c).Padding(3, 8, 3, 8).Radius(4).Background(p.press).Children(func() {
+						ui.Text(c, hero.Origin.OriginLabel()).FontSize(11).FontWeight(600).TextColor(p.accent)
+					})
+				})
+
+				ui.Text(c, hero.Title).FontSize(23).FontWeight(700).TextColor(p.text)
+				desc := hero.Description
+				if len([]rune(desc)) > 110 {
+					desc = string([]rune(desc)[:110]) + "..."
+				}
+				ui.Text(c, desc).FontSize(12.5).TextColor(p.muted).LineHeight(1.4)
+
+				ui.Row(c).AlignItems(ui.Center).Gap(12).Margin(4, 0, 0, 0).Children(func() {
+					playBtn := pillButton(c.Key("hero-play"), iconPlay, "立即播放（PC 宽屏影院）", p.accent, p.onAccent)
+					if playBtn.Clicked() {
+						a.dramaWidescreenMode = true
+						a.startDramaEpisode(hero, 0)
+					}
+
+					p916Btn := pillButton(c.Key("hero-916"), iconAspectRatio, "📱 9:16 竖屏模式", p.hover, p.text).
+						Border(1, p.hairline)
+					if p916Btn.Clicked() {
+						a.dramaWidescreenMode = false
+						a.startDramaEpisode(hero, 0)
+					}
+				})
 			})
 		})
 	})
@@ -263,65 +308,102 @@ func (a *app) dramaHeroBanner(c *ui.Context, hero *vcp.DramaItem) {
 // dramaCard renders a single poster card with cover, episode badge, title, and play count.
 func (a *app) dramaCard(c *ui.Context, drama *vcp.DramaItem) {
 	p := a.pal
-	cardW := float32(180)
-	cardH := float32(290)
+	card := ui.ButtonBase(c.Key(fmt.Sprintf("drama-%d", drama.ID))).
+		Column().Gap(8).AlignItems(ui.Stretch).Justify(ui.Start).FocusRing(false).Label(drama.Title)
 
-	btn := ui.ButtonBase(c.Key(fmt.Sprintf("drama-%d", drama.ID))).
-		Width(cardW).Height(cardH).Radius(12).Padding(8).
-		AlignItems(ui.Start).Justify(ui.Start).FocusRing(false)
+	hovered := card.Hovered()
 
-	bg := p.card
-	border := p.hairline
-	if btn.Hovered() {
-		bg = p.hover
-		border = p.accent.Alpha(0.5)
-	}
-	btn.Background(btn.AnimateColor("bg", bg, ui.Animation{Duration: 100 * time.Millisecond})).
-		Border(1, border)
+	card.Children(func() {
+		// Poster Container: 3:4.2 (0.714 AspectRatio)
+		art := ui.Box(c).AspectRatio(0.714).Radius(10).Clip()
+		lift := ui.Pose{}
+		if hovered {
+			lift = ui.Pose{Y: -4}
+			art.Shadow(0, 14, 28, -4, p.cardShade)
+		} else {
+			art.Shadow(0, 2, 8, -2, p.cardShade)
+		}
+		art.AnimatePose(lift, ui.Snappy)
 
-	btn.Children(func() {
-		ui.Column(c).Fill().Gap(8).Children(func() {
-			// Cover Container with Badges
-			coverBox := ui.Box(c).Width(cardW - 16).Height(220).Radius(8).Clip()
-			coverBox.Children(func() {
-				coverURL := fmt.Sprintf("flashmusic://drama-cover/%d", drama.ID)
-				a.coverPoster(c, coverURL, cardW-16, 220, 8)
+		art.Children(func() {
+			coverURL := fmt.Sprintf("flashmusic://drama-cover/%d", drama.ID)
+			a.coverPosterFill(c, coverURL, 10)
 
-				// Top Episode Count Badge
-				ui.Box(c).Padding(2, 6, 2, 6).Radius(4).
-					Background(ui.RGBA(0, 0, 0, 0.72)).Margin(6, 0, 0, 6).Children(func() {
-					ui.Text(c, fmt.Sprintf("%d集全", drama.EpisodeCount)).FontSize(10.5).FontWeight(600).TextColor(white)
+			// Top Badges
+			ui.Row(c).Absolute().Top(7).Left(7).Right(7).AlignItems(ui.Center).Children(func() {
+				// Left badge: HD
+				ui.Box(c).Padding(2, 6).Radius(5).Background(ui.RGBA(0, 0, 0, 0.72)).Children(func() {
+					ui.Text(c, "1080P 超清").FontSize(10).FontWeight(600).TextColor(white)
 				})
-
-				// Bottom Playcount Gradient Bar
-				ui.Box(c).Height(26).Background(ui.RGBA(0, 0, 0, 0.65)).
-					AlignItems(ui.Center).PaddingX(8).Children(func() {
-					ui.Icon(c, iconPlay).Size(11, 11).TextColor(white).Margin(0, 4, 0, 0)
-					views := formatViews(drama.PlayCount)
-					ui.Text(c, views+" · 1080P").FontSize(11).TextColor(white)
+				ui.Spacer(c)
+				// Right badge: Total Episodes
+				ui.Box(c).Padding(2, 6).Radius(5).Background(ui.RGBA(0, 0, 0, 0.72)).Children(func() {
+					ui.Text(c, fmt.Sprintf("%d集全", drama.EpisodeCount)).FontSize(10).FontWeight(600).TextColor(white)
 				})
 			})
 
-			// Drama Title
-			ui.Text(c, drama.Title).FontSize(13.5).FontWeight(600).TextColor(p.text).MaxLines(1)
-
-				// Sub info / Category
-				ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
-					if drama.Category != "" {
-						ui.Box(c).Padding(1, 5, 1, 5).Radius(3).Background(p.hover).Children(func() {
-							ui.Text(c, drama.Category).FontSize(10.5).TextColor(p.accent)
-						})
-					}
-					if len(drama.Tags) > 0 {
-						ui.Text(c, drama.Tags[0]).FontSize(10.5).TextColor(p.muted)
-					}
+			// Center Glowing Play Button on Hover
+			playBtn := ui.Box(c).Absolute().Fill().Center()
+			playPose := ui.Pose{Fade: 0, Scale: 0.8}
+			if hovered {
+				playPose = ui.Pose{Fade: 1, Scale: 1.08}
+			}
+			playBtn.AnimatePose(playPose, ui.Snappy)
+			playBtn.Children(func() {
+				ui.Box(c).Size(44, 44).Radius(22).Background(p.accent).Center().
+					Shadow(0, 4, 16, 0, p.accent.Alpha(0.6)).Children(func() {
+					ui.Icon(c, iconPlay).Size(18, 18).TextColor(p.onAccent).Margin(0, 0, 0, 2)
 				})
+			})
+
+			// Bottom 3-stop Gradient Overlay with Playcount & Origin
+			ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(40).
+				LinearGradient(ui.LinearGradient{
+					Angle: 180,
+					Stops: []ui.GradientStop{
+						{Color: ui.RGBA(0, 0, 0, 0), At: 0},
+						{Color: ui.RGBA(0, 0, 0, 0.55), At: 0.45},
+						{Color: ui.RGBA(0, 0, 0, 0.88), At: 1},
+					},
+				}).Padding(0, 8, 6, 8).AlignItems(ui.End).Children(func() {
+				ui.Row(c).Fill().AlignItems(ui.Center).Children(func() {
+					ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
+						ui.Icon(c, iconPlay).Size(10, 10).TextColor(white.Alpha(0.9))
+						ui.Text(c, formatViews(drama.PlayCount)).FontSize(10.5).FontWeight(600).TextColor(white)
+					})
+					ui.Spacer(c)
+					ui.Text(c, drama.Origin.OriginLabel()).FontSize(10).FontWeight(500).TextColor(white.Alpha(0.75))
+				})
+			})
+		})
+
+		// Title (13.5px font-weight 600, hover highlight with p.accent)
+		titleCol := p.text
+		if hovered {
+			titleCol = p.accent
+		}
+		ui.Text(c, drama.Title).FontSize(13.5).FontWeight(600).TextColor(titleCol).MaxLines(1)
+
+		// Metadata Sub-row: Category Pill + Description/Tag
+		ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+			if drama.Category != "" {
+				ui.Box(c).Padding(1, 5).Radius(4).Background(p.hover).Children(func() {
+					ui.Text(c, drama.Category).FontSize(10.5).FontWeight(600).TextColor(p.accent)
+				})
+			}
+			desc := drama.Description
+			if len(drama.Tags) > 0 && drama.Tags[0] != "" {
+				desc = drama.Tags[0]
+			}
+			if desc != "" {
+				ui.Text(c, desc).FontSize(11.5).TextColor(p.muted).SingleLine().Grow(1).Shrink(1)
+			}
 		})
 	})
 
-		if btn.Clicked() {
-			a.startDramaEpisode(drama, 0)
-		}
+	if card.Clicked() {
+		a.startDramaEpisode(drama, 0)
+	}
 }
 
 // dramaTheater renders the PC Widescreen (16:9) or optional 9:16 portrait video theater.
@@ -804,7 +886,8 @@ func (a *app) dramasHistory(c *ui.Context) {
 			}
 		})
 
-		ui.Row(c.Key("history-grid")).Wrap().Gap(14).Children(func() {
+		cols := a.columns(c, 190)
+		ui.Grid(c.Key("history-grid")).Columns(cols).GapX(18).GapY(28).Children(func() {
 			for _, id := range a.dramaHistory {
 				if drama := vcp.GetDrama(id); drama != nil {
 					a.dramaCard(c, drama)

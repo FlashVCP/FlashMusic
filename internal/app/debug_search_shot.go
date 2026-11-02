@@ -33,28 +33,40 @@ func init() {
 			// Wait 3s for boot and data loading
 			time.Sleep(3 * time.Second)
 
-				// Step 1: Open Search Landing Page (query empty)
+				// Step 1: Open 微短剧场 (pageDramas)
 				step(0, func() {
-					a.open(route{page: pageSearch, query: ""})
+					a.open(route{page: pageDramas})
 				})
 				time.Sleep(2500 * time.Millisecond)
-				shot("flashmusic_search_landing", a.win)
+				shot("flashmusic_vision_dramas", a.win)
 
-				// Step 2: Switch to "流行" category playlist view
+				// Step 2: Open 潮流短视频 (pageShortVideos)
 				step(0, func() {
-					a.searchCat = "流行"
-					a.loadCategoryPlaylists("流行")
+					a.open(route{page: pageShortVideos})
 				})
-				time.Sleep(3000 * time.Millisecond)
-				shot("flashmusic_search_cat_pop", a.win)
+				time.Sleep(2500 * time.Millisecond)
+				shot("flashmusic_vision_shortvideos", a.win)
 
-				// Step 3: Search for "刀郎" (Replicating User Figure 3)
+				// Step 3: Open 院线影视 (pageCinema)
 				step(0, func() {
-					a.query = "刀郎"
-					a.search("刀郎")
+					a.open(route{page: pageCinema})
 				})
-				time.Sleep(3500 * time.Millisecond)
-				shot("flashmusic_search_daolang", a.win)
+				time.Sleep(2500 * time.Millisecond)
+				shot("flashmusic_vision_cinema", a.win)
+
+				// Step 4: Open 互动直播 (pageLive)
+				step(0, func() {
+					a.open(route{page: pageLive})
+				})
+				time.Sleep(2000 * time.Millisecond)
+				shot("flashmusic_vision_live", a.win)
+
+				// Step 5: Open 语音空间 (pageVoiceRoom)
+				step(0, func() {
+					a.open(route{page: pageVoiceRoom})
+				})
+				time.Sleep(2000 * time.Millisecond)
+				shot("flashmusic_vision_voiceroom", a.win)
 
 			println("[FM_SHOT] All shots finished.")
 			time.Sleep(500 * time.Millisecond)

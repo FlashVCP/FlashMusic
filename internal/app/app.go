@@ -304,9 +304,9 @@ func Run() error {
 		artists:    map[int64]*artistData{},
 		albums:     map[int64]*albumData{},
 		users:      map[int64]*userData{},
-		podcasts:            map[int64]*podcastData{},
-		podcastTab:          &podcastTab{},
-				route:               route{page: pageHome},
+			podcasts:            map[int64]*podcastData{},
+			podcastTab:          &podcastTab{},
+			route:               route{page: pageDramas},
 			activeDramaTab:      0,
 			nowPlaying:          false,
 			npPane:              paneLyrics,
@@ -314,67 +314,90 @@ func Run() error {
 			searchCat:           "每日推荐",
 			catPlaylists:        map[string][]netease.Playlist{},
 			lyricAt:             -1,
-		queueAt:             -1,
-		cacheUsed:           -1,
-		dramaWidescreenMode: true,
-		dramaAutoNext:       true,
-		nodeActive:          true,
-		nodeStatus:          "running",
-		nodeCreditTier:      "AAA",
-		nodeID:              "fm-node-cn-east-8f4b",
-		nodeSessionStart:    time.Now().Add(-3*time.Hour - 24*time.Minute),
-		nodeUploadSpeed:     4.85,
-		nodeDownloadSpeed:   18.20,
-		nodeUploadCapMbps:   35,
-		nodeTodayTrafficGB:  12.4,
-		nodeCachedBytes:     28 * 1024 * 1024 * 1024,
-		nodeTotalQuotaBytes: 100 * 1024 * 1024 * 1024,
-		nodeEarnedXFB:       68.5,
-		nodeOffsetRMB:       137.0,
-		nodeStandbyMinor:    "12.80",
-		nodeBusinessMinor:   "124.20",
-		nodeScheduleMode:    "continuous",
-		nodeWakeOnShare:     true,
-		nodePauseOnBattery:  true,
-		nodeTab:             0,
-	}
-	moveOldData()
-	a.useUpdater()
-	mygo.App.WhenReady(func() {
+			queueAt:             -1,
+			cacheUsed:           -1,
+			dramaWidescreenMode: true,
+			dramaAutoNext:       true,
+			nodeActive:          true,
+			nodeStatus:          "running",
+			nodeCreditTier:      "AAA",
+			nodeID:              "fm-node-cn-east-8f4b",
+			nodeSessionStart:    time.Now().Add(-3*time.Hour - 24*time.Minute),
+			nodeUploadSpeed:     4.85,
+			nodeDownloadSpeed:   18.20,
+			nodeUploadCapMbps:   35,
+			nodeTodayTrafficGB:  12.4,
+			nodeCachedBytes:     28 * 1024 * 1024 * 1024,
+			nodeTotalQuotaBytes: 100 * 1024 * 1024 * 1024,
+			nodeEarnedXFB:       68.5,
+			nodeOffsetRMB:       137.0,
+			nodeStandbyMinor:    "12.80",
+			nodeBusinessMinor:   "124.20",
+			nodeScheduleMode:    "continuous",
+			nodeWakeOnShare:     true,
+			nodePauseOnBattery:  true,
+			nodeTab:             0,
+		}
+		moveOldData()
+		a.useUpdater()
+		mygo.App.WhenReady(func() {
 			a.settings = loadSettings()
 			a.settings.LyricsStage = false
 			a.settings.applyAppearance()
-		a.npPane = a.lyricsPaneChosen()
-		// Before the window: on Windows it lays out its content as it is
-		// made, and the view asks the player what plays.
-		a.art = newArtCache(a.post)
-		a.pl = player.New(a.post)
-		a.pl.Quality = func() string { return a.settings.Quality }
-		a.pl.Normalize = func() bool { return a.settings.Normalize }
-		a.pl.Cache = newSongCache(a.settings.CacheMB)
-		a.pl.Changed = func() {
-			a.keepSession()
-			a.syncCaptions()
-		}
-		a.volume = a.settings.Volume
-		a.pl.SetVolume(a.volume)
-		a.win = mygo.NewWindow(mygo.WindowOptions{
-			Title:         mygo.App.Name(),
-			Width:         1180,
-			Height:        780,
-			MinWidth:      880,
-			MinHeight:     580,
-			StateKey:      "main",
-			TitleBarStyle: mygo.TitleBarHidden,
-			// As tall as the edge over a page (Linux, Windows).
-			TitleBarHeight: buttonsHeight,
-			// Inset from the corner, within the sidebar, as macOS 26's
-			// apps with a sidebar place them.
-			TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
-			Vibrancy:             mygo.VibrancySidebar,
-			BackgroundColor:      "light-dark(#ffffff, #141416)",
-			Content:              ui.View(a.view),
-		})
+			a.npPane = a.lyricsPaneChosen()
+			// Before the window: on Windows it lays out its content as it is
+			// made, and the view asks the player what plays.
+			a.art = newArtCache(a.post)
+			a.pl = player.New(a.post)
+			a.pl.Quality = func() string { return a.settings.Quality }
+			a.pl.Normalize = func() bool { return a.settings.Normalize }
+			a.pl.Cache = newSongCache(a.settings.CacheMB)
+			a.pl.Changed = func() {
+				a.keepSession()
+				a.syncCaptions()
+			}
+			a.volume = a.settings.Volume
+			a.pl.SetVolume(a.volume)
+
+			// Default desktop bounds matching user reference screenshot (1848x1086, min 1280)
+			initW, initH := 1848, 1086
+			if d := mygo.Screen.PrimaryDisplay(); d.WorkArea.Width > 0 && d.WorkArea.Height > 0 {
+				maxW := int(float64(d.WorkArea.Width) * 0.95)
+				maxH := int(float64(d.WorkArea.Height) * 0.95)
+				if initW > maxW {
+					initW = maxW
+				}
+				if initH > maxH {
+					initH = maxH
+				}
+				if initW < 1280 {
+					initW = min(1280, d.WorkArea.Width)
+				}
+			}
+
+			a.win = mygo.NewWindow(mygo.WindowOptions{
+				Title:         mygo.App.Name(),
+				Width:         initW,
+				Height:        initH,
+				MinWidth:      1280,
+				MinHeight:     720,
+				StateKey:      "main",
+				TitleBarStyle: mygo.TitleBarHidden,
+				// As tall as the edge over a page (Linux, Windows).
+				TitleBarHeight: buttonsHeight,
+				// Inset from the corner, within the sidebar, as macOS 26's
+				// apps with a sidebar place them.
+				TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
+				Vibrancy:             mygo.VibrancySidebar,
+				BackgroundColor:      "light-dark(#ffffff, #141416)",
+				Content:              ui.View(a.view),
+			})
+
+			// Ensure legacy window state (< 1280) is upgraded to the spacious 1848x1086 view
+			if curW, curH := a.win.Size(); curW < 1280 || curH < 720 {
+				a.win.SetSize(initW, initH)
+				a.win.Center()
+			}
 		a.setMenu()
 		a.boot()
 		// The notch player is macOS's, over its menu bar: elsewhere it would

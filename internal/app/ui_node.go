@@ -619,26 +619,132 @@ func (a *app) livePage(c *ui.Context) {
 	top, bottom := a.insets(c)
 	p := a.pal
 
-	ui.Column(c.Key("live-page")).Fill().Padding(top+pageGap, pagePad-8, bottom+32, pagePad-8).Gap(16).Children(func() {
+	type LiveRoom struct {
+		ID       string
+		Title    string
+		Host     string
+		Category string
+		Cover    string
+		Viewers  string
+		Tag      string
+	}
+
+	rooms := []LiveRoom{
+		{ID: "live-1", Title: "全网首播 · 《和离后我带女儿横扫魔域》主创见面会", Host: "短剧主创连麦组", Category: "短剧主创", Cover: "https://p3.douyinpic.com/img/tos-cn-i-0813c001/oAABz9fEEe94j94g8oB9", Viewers: "4.8万", Tag: "HOT 爆款"},
+		{ID: "live-2", Title: "吉他弹唱与点歌深夜电台 · 经典民谣专场", Host: "民谣诗人老陈", Category: "民谣弹唱", Cover: "https://p3.douyinpic.com/img/tos-cn-i-0813c001/o4ABz9fEEe94j94g8oB9", Viewers: "2.1万", Tag: "推荐"},
+		{ID: "live-3", Title: "电子迷幻夜 · 4K 蓝光杜比全景声 DJ 现场", Host: "DJ SonicWave", Category: "电音现场", Cover: "https://p3.douyinpic.com/img/tos-cn-i-0813c001/o8ABz9fEEe94j94g8oB9", Viewers: "1.9万", Tag: "杜比全景声"},
+		{ID: "live-4", Title: "钢琴纯音疗愈 · 晚安世界，愿好梦常伴", Host: "钢琴少女林林", Category: "治愈钢琴", Cover: "https://p3.douyinpic.com/img/tos-cn-i-0813c001/oAABz9fEEe94j94g8oB8", Viewers: "1.4万", Tag: "晚安治愈"},
+		{ID: "live-5", Title: "千禧年华语流行金曲点唱 · 那些年我们听过的歌", Host: "岁月留声", Category: "经典华语", Cover: "https://p3.douyinpic.com/img/tos-cn-i-0813c001/oCABz9fEEe94j94g8oB7", Viewers: "3.2万", Tag: "金曲回忆"},
+		{ID: "live-6", Title: "国风戏腔与古筝跨界合奏 · 盛世长安夜", Host: "国风弄潮儿", Category: "国风新声", Cover: "https://p3.douyinpic.com/img/tos-cn-i-0813c001/oDABz9fEEe94j94g8oB6", Viewers: "1.6万", Tag: "国风"},
+	}
+
+	ui.Scroll(c.Key("live-scroll-page")).TrackScroll(&a.pageScroll).Grow(1).
+		Padding(top+pageGap, pagePad-8, bottom+32, pagePad-8).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
 
-		ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
-			ui.Icon(c, iconBroadcast).Size(22, 22).TextColor(p.accent)
-			ui.Text(c, "互动直播大厅").FontSize(20).FontWeight(700).TextColor(p.text)
-			ui.Box(c).Padding(2, 6, 2, 6).Radius(4).Background(ui.RGBA(239, 68, 68, 0.15)).Children(func() {
-				ui.Text(c, "LIVE NOW").FontSize(10.5).FontWeight(700).TextColor(ui.Hex("#ef4444"))
+		// Header
+		ui.Row(c.Key("live-header")).AlignItems(ui.Center).Gap(12).Margin(0, 0, 16, 0).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				ui.Icon(c, iconBroadcast).Size(22, 22).TextColor(p.accent)
+				ui.Text(c, "互动直播大厅").FontSize(20).FontWeight(700).TextColor(p.text)
+			})
+			ui.Box(c).Padding(2, 8).Radius(999).Background(ui.RGBA(239, 68, 68, 0.12)).
+				Border(1, ui.RGBA(239, 68, 68, 0.3)).Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Gap(5).Children(func() {
+					ui.Box(c).Size(6, 6).Radius(3).Background(ui.Hex("#ef4444"))
+					ui.Text(c, "LIVE NOW 实时开播中").FontSize(11).FontWeight(700).TextColor(ui.Hex("#ef4444"))
+				})
+			})
+
+			ui.Spacer(c)
+			ui.Text(c, "高保真低延迟音频 · 实时互动点歌").FontSize(12).TextColor(p.muted)
+		})
+
+		// Live Hero Spotlight Banner
+		ui.Box(c.Key("live-hero-banner")).Height(160).Radius(14).Background(p.card).
+			Border(1, p.hairline).Padding(20).Margin(0, 0, 20, 0).Children(func() {
+			ui.Row(c).Fill().AlignItems(ui.Center).Gap(20).Children(func() {
+				ui.Box(c).Size(60, 60).Radius(30).Background(p.accent.Alpha(0.15)).Center().Children(func() {
+					ui.Icon(c, iconBroadcast).Size(28, 28).TextColor(p.accent)
+				})
+				ui.Column(c).Grow(1).Gap(6).Children(func() {
+					ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+						ui.Box(c).Padding(2, 6).Radius(4).Background(p.accent).Children(func() {
+							ui.Text(c, "焦点直通").FontSize(10.5).FontWeight(700).TextColor(p.onAccent)
+						})
+						ui.Text(c, "FlashMusic 音乐人与短剧主创连麦直播间").FontSize(16).FontWeight(700).TextColor(p.text)
+					})
+					ui.Text(c, "高保真低延迟音频传输，支持与全网主播实时互动、点歌送礼与弹幕共鸣").
+						FontSize(12.5).TextColor(p.muted)
+				})
+				pillButton(c.Key("hero-enter-live"), iconPlay, "进入主直播间", p.accent, p.onAccent)
 			})
 		})
 
-		ui.Box(c.Key("live-banner")).Height(160).Radius(12).Background(p.card).
-			Border(1, p.hairline).Padding(20).Center().Children(func() {
-			ui.Column(c).Center().Gap(8).Children(func() {
-				ui.Icon(c, iconBroadcast).Size(32, 32).TextColor(p.accent)
-				ui.Text(c, "FlashMusic 音乐人与短剧主创连麦直播间").FontSize(16).FontWeight(700).TextColor(p.text)
-				ui.Text(c, "高保真低延迟音频传输，支持与全网主播实时互动、点歌送礼与弹幕共鸣").
-					FontSize(12.5).TextColor(p.muted)
-			})
+		// Grid of Live Rooms
+		cols := a.columns(c, 240)
+		ui.Grid(c.Key("live-grid")).Columns(cols).GapX(18).GapY(24).Children(func() {
+			for _, rm := range rooms {
+				room := rm
+				card := ui.ButtonBase(c.Key(room.ID)).Column().Gap(8).AlignItems(ui.Stretch).FocusRing(false).Label(room.Title)
+				hovered := card.Hovered()
+
+				card.Children(func() {
+					// 16:9 Cover Frame
+					art := ui.Box(c).AspectRatio(16.0 / 9.0).Radius(10).Clip()
+					lift := ui.Pose{}
+					if hovered {
+						lift = ui.Pose{Y: -3}
+						art.Shadow(0, 12, 24, -4, p.cardShade)
+						art.Border(1.5, p.accent.Alpha(0.6))
+					} else {
+						art.Shadow(0, 2, 8, -2, p.cardShade)
+						art.Border(1, p.hairline)
+					}
+					art.AnimatePose(lift, ui.Snappy)
+
+					art.Children(func() {
+						a.coverFill(c, room.Cover, 400, 10)
+
+						// Top Badges
+						ui.Row(c).Absolute().Top(6).Left(6).Right(6).AlignItems(ui.Center).Children(func() {
+							ui.Box(c).Padding(2, 6).Radius(4).Background(ui.RGBA(239, 68, 68, 0.85)).Children(func() {
+								ui.Text(c, "LIVE").FontSize(9.5).FontWeight(800).TextColor(white)
+							})
+							ui.Spacer(c)
+							ui.Box(c).Padding(2, 6).Radius(4).Background(ui.RGBA(0, 0, 0, 0.65)).Children(func() {
+								ui.Text(c, room.Tag).FontSize(10).FontWeight(600).TextColor(white)
+							})
+						})
+
+						// Bottom Viewers Overlay
+						ui.Box(c).Absolute().Left(0).Right(0).Bottom(0).Height(30).
+							LinearGradient(ui.LinearGradient{
+								Angle: 180,
+								Stops: []ui.GradientStop{
+									{Color: ui.RGBA(0, 0, 0, 0), At: 0},
+									{Color: ui.RGBA(0, 0, 0, 0.8), At: 1},
+								},
+							}).Padding(0, 8, 4, 8).AlignItems(ui.End).Children(func() {
+							ui.Row(c).Fill().AlignItems(ui.Center).Children(func() {
+								ui.Text(c, room.Host).FontSize(10.5).FontWeight(500).TextColor(white.Alpha(0.9)).SingleLine().Grow(1)
+								ui.Row(c).AlignItems(ui.Center).Gap(3).Children(func() {
+									ui.Icon(c, iconUser).Size(11, 11).TextColor(white)
+									ui.Text(c, room.Viewers).FontSize(10.5).FontWeight(600).TextColor(white)
+								})
+							})
+						})
+					})
+
+					// Title
+					titleCol := p.text
+					if hovered {
+						titleCol = p.accent
+					}
+					ui.Text(c, room.Title).FontSize(13).FontWeight(600).TextColor(titleCol).MaxLines(1)
+				})
+			}
 		})
 	})
 }
@@ -648,24 +754,104 @@ func (a *app) voiceRoomPage(c *ui.Context) {
 	top, bottom := a.insets(c)
 	p := a.pal
 
-	ui.Column(c.Key("voice-room-page")).Fill().Padding(top+pageGap, pagePad-8, bottom+32, pagePad-8).Gap(16).Children(func() {
+	type VoiceRoom struct {
+		ID      string
+		Title   string
+		Topic   string
+		Host    string
+		Seats   int
+		Online  int
+		Tag     string
+	}
+
+	vrooms := []VoiceRoom{
+		{ID: "vr-1", Title: "深夜留声机 · 治愈你的每一份孤独", Topic: "情感夜话", Host: "晚安电台", Seats: 8, Online: 1420, Tag: "热门夜话"},
+		{ID: "vr-2", Title: "华语老歌对唱麦 · 一人一句唱出你的故事", Topic: "K歌对唱", Host: "麦霸俱乐部", Seats: 8, Online: 890, Tag: "欢乐麦房"},
+		{ID: "vr-3", Title: "短剧爆款拆解与剧本杀讨论会", Topic: "创作交流", Host: "剧本工坊", Seats: 6, Online: 640, Tag: "行业沙龙"},
+		{ID: "vr-4", Title: "端侧 AI 音效与空间音频试听交流", Topic: "声学极客", Host: "AudioLab", Seats: 8, Online: 520, Tag: "极客声学"},
+	}
+
+	ui.Scroll(c.Key("voice-scroll-page")).TrackScroll(&a.pageScroll).Grow(1).
+		Padding(top+pageGap, pagePad-8, bottom+32, pagePad-8).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
 
-		ui.Row(c).AlignItems(ui.Center).Gap(10).Children(func() {
-			ui.Icon(c, iconMic).Size(22, 22).TextColor(p.accent)
-			ui.Text(c, "语音空间").FontSize(20).FontWeight(700).TextColor(p.text)
+		ui.Row(c.Key("voice-header")).AlignItems(ui.Center).Gap(12).Margin(0, 0, 16, 0).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+				ui.Icon(c, iconMic).Size(22, 22).TextColor(p.accent)
+				ui.Text(c, "语音空间").FontSize(20).FontWeight(700).TextColor(p.text)
+			})
+			ui.Box(c).Padding(2, 8).Radius(999).Background(p.press).Children(func() {
+				ui.Text(c, "3D 空间音频 · 端侧 AI 降噪").FontSize(11).FontWeight(600).TextColor(p.accent)
+			})
+			ui.Spacer(c)
+			ui.Text(c, "随时上麦，无拘束的声音陪伴").FontSize(12).TextColor(p.muted)
 		})
 
-		ui.Box(c.Key("voice-card")).Height(160).Radius(12).Background(p.card).
-			Border(1, p.hairline).Padding(20).Center().Children(func() {
-			ui.Column(c).Center().Gap(8).Children(func() {
-				ui.Icon(c, iconMic).Size(32, 32).TextColor(p.accent)
-				ui.Text(c, "多人高清语音连麦与深夜留声机").FontSize(16).FontWeight(700).TextColor(p.text)
-				ui.Text(c, "基于端侧 AI 降噪技术与空间音频音效，畅享无拘束的声音陪伴").
-						FontSize(12.5).TextColor(p.muted)
+		// Voice Spotlight Banner
+		ui.Box(c.Key("voice-banner")).Height(130).Radius(14).Background(p.card).
+			Border(1, p.hairline).Padding(18).Margin(0, 0, 20, 0).Children(func() {
+			ui.Row(c).Fill().AlignItems(ui.Center).Gap(18).Children(func() {
+				ui.Box(c).Size(54, 54).Radius(27).Background(p.accent.Alpha(0.15)).Center().Children(func() {
+					ui.Icon(c, iconMic).Size(26, 26).TextColor(p.accent)
 				})
+				ui.Column(c).Grow(1).Gap(4).Children(func() {
+					ui.Text(c, "开启你的专属语音房间").FontSize(15.5).FontWeight(700).TextColor(p.text)
+					ui.Text(c, "支持最高 8 人高清连麦与千人同时收听，端侧 AI 智能降噪，告别杂音喧嚣").
+						FontSize(12).TextColor(p.muted)
+				})
+				pillButton(c.Key("create-voice-room"), iconPlus, "立即开麦建房", p.accent, p.onAccent)
 			})
 		})
-	}
+
+		// Voice Room Cards
+		ui.Grid(c.Key("voice-grid")).Columns(2).GapX(20).GapY(16).Children(func() {
+			for _, vr := range vrooms {
+				v := vr
+				card := ui.ButtonBase(c.Key(v.ID)).Padding(16).Radius(14).
+					Background(p.card).Border(1, p.hairline).FocusRing(false).Label(v.Title)
+				if card.Hovered() {
+					card.Background(p.hover).Border(1, p.accent.Alpha(0.4)).Shadow(0, 4, 16, -2, p.cardShade)
+				}
+				card.Children(func() {
+					ui.Column(c).Fill().Gap(10).Children(func() {
+						ui.Row(c).AlignItems(ui.Center).Children(func() {
+							ui.Box(c).Padding(2, 6).Radius(4).Background(p.hover).Children(func() {
+								ui.Text(c, v.Topic).FontSize(11).FontWeight(600).TextColor(p.accent)
+							})
+							ui.Spacer(c)
+							ui.Row(c).AlignItems(ui.Center).Gap(4).Children(func() {
+								ui.Icon(c, iconHeadset).Size(12, 12).TextColor(p.muted)
+								ui.Textf(c, "%d 人在线", v.Online).FontSize(11).TextColor(p.muted)
+							})
+						})
+
+						ui.Text(c, v.Title).FontSize(14).FontWeight(700).TextColor(p.text).MaxLines(1)
+
+						// 8 Mic Seats Representation
+						ui.Row(c).AlignItems(ui.Center).Gap(8).Children(func() {
+							for s := 0; s < 8; s++ {
+								seatActive := s < 3
+								circleColor := p.press
+								if seatActive {
+									circleColor = p.accent.Alpha(0.2)
+								}
+								ui.Box(c.Key(fmt.Sprintf("%s-seat-%d", v.ID, s))).Size(28, 28).Radius(14).
+									Background(circleColor).Center().Children(func() {
+									if seatActive {
+										ui.Icon(c, iconMic).Size(13, 13).TextColor(p.accent)
+									} else {
+										ui.Box(c).Size(6, 6).Radius(3).Background(p.hairline)
+									}
+								})
+							}
+							ui.Spacer(c)
+							ui.Text(c, "点击加入 >").FontSize(11.5).FontWeight(600).TextColor(p.accent)
+						})
+					})
+				})
+			}
+		})
+	})
+}
 
