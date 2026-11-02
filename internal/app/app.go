@@ -1,7 +1,9 @@
 package app
 
 import (
+	"encoding/json"
 	"os"
+	"path/filepath"
 	"runtime"
 	"time"
 
@@ -359,45 +361,60 @@ func Run() error {
 			a.volume = a.settings.Volume
 			a.pl.SetVolume(a.volume)
 
-			// Default desktop bounds matching user reference screenshot (1848x1086, min 1280)
-			initW, initH := 1848, 1086
-			if d := mygo.Screen.PrimaryDisplay(); d.WorkArea.Width > 0 && d.WorkArea.Height > 0 {
-				maxW := int(float64(d.WorkArea.Width) * 0.95)
-				maxH := int(float64(d.WorkArea.Height) * 0.95)
-				if initW > maxW {
-					initW = maxW
+				// Default desktop bounds referencing AlgerMusicPlayer (1782x1059 / user reference screenshot 1848x1086)
+				initW, initH := 1782, 1059
+				if appData := os.Getenv("APPDATA"); appData != "" {
+					algerCfgPath := filepath.Join(appData, "AlgerMusicPlayer", "config.json")
+					if data, err := os.ReadFile(algerCfgPath); err == nil {
+						var cfg struct {
+							WindowState struct {
+								Width  int `json:"width"`
+								Height int `json:"height"`
+							} `json:"windowState"`
+						}
+						if err := json.Unmarshal(data, &cfg); err == nil && cfg.WindowState.Width >= 1280 && cfg.WindowState.Height >= 720 {
+							initW = cfg.WindowState.Width
+							initH = cfg.WindowState.Height
+						}
+					}
 				}
-				if initH > maxH {
-					initH = maxH
+				if d := mygo.Screen.PrimaryDisplay(); d.WorkArea.Width > 0 && d.WorkArea.Height > 0 {
+					maxW := int(float64(d.WorkArea.Width) * 0.96)
+					maxH := int(float64(d.WorkArea.Height) * 0.96)
+					if initW > maxW {
+						initW = maxW
+					}
+					if initH > maxH {
+						initH = maxH
+					}
+					if initW < 1280 {
+						initW = min(1280, d.WorkArea.Width)
+					}
 				}
-				if initW < 1280 {
-					initW = min(1280, d.WorkArea.Width)
-				}
-			}
 
-			a.win = mygo.NewWindow(mygo.WindowOptions{
-				Title:         mygo.App.Name(),
-				Width:         initW,
-				Height:        initH,
-				MinWidth:      1280,
-				MinHeight:     720,
-				StateKey:      "main",
-				TitleBarStyle: mygo.TitleBarHidden,
-				// As tall as the edge over a page (Linux, Windows).
-				TitleBarHeight: buttonsHeight,
-				// Inset from the corner, within the sidebar, as macOS 26's
-				// apps with a sidebar place them.
-				TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
-				Vibrancy:             mygo.VibrancySidebar,
-				BackgroundColor:      "light-dark(#ffffff, #141416)",
-				Content:              ui.View(a.view),
-			})
+				a.win = mygo.NewWindow(mygo.WindowOptions{
+					Title:         mygo.App.Name(),
+					Width:         initW,
+					Height:        initH,
+					MinWidth:      1280,
+					MinHeight:     720,
+					StateKey:      "main",
+					TitleBarStyle: mygo.TitleBarHidden,
+					// As tall as the edge over a page (Linux, Windows).
+					TitleBarHeight: buttonsHeight,
+					// Inset from the corner, within the sidebar, as macOS 26's
+					// apps with a sidebar place them.
+					TrafficLightPosition: &mygo.Point{X: 20, Y: 20},
+					Vibrancy:             mygo.VibrancySidebar,
+					BackgroundColor:      "light-dark(#ffffff, #141416)",
+					Content:              ui.View(a.view),
+				})
 
-			// Ensure legacy window state (< 1280) is upgraded to the spacious 1848x1086 view
-			if curW, curH := a.win.Size(); curW < 1280 || curH < 720 {
-				a.win.SetSize(initW, initH)
-				a.win.Center()
-			}
+				// Ensure stale legacy window state (<= 1366 or <= 800) is upgraded to match AlgerMusicPlayer's spacious layout
+				if curW, curH := a.win.Size(); curW <= 1366 || curH <= 800 {
+					a.win.SetSize(initW, initH)
+					a.win.Center()
+				}
 		a.setMenu()
 		a.boot()
 		// The notch player is macOS's, over its menu bar: elsewhere it would
