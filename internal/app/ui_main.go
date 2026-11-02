@@ -78,8 +78,9 @@ func (a *app) view(c *ui.Context) {
 		})
 		a.nowPlayingLayer(c, npOpen, npSettled)
 	})
-		a.unifiedLoginModal(c)
-		a.playlistNameDialog(c)
+			a.unifiedLoginModal(c)
+			a.closeAppConfirmModal(c)
+			a.playlistNameDialog(c)
 		a.deletePlaylistDialog(c)
 		a.songPropertiesDialog(c)
 	if a.toast != "" {

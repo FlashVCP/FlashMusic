@@ -58,9 +58,11 @@ type settings struct {
 	// Captions writes down episodes as they play, for their captions,
 	// once the listener has downloaded the model.
 	Captions bool `json:"captions"`
-	// CacheMB is how many megabytes the songs kept on disk may take; 0
-	// keeps none.
-	CacheMB int `json:"cacheMB"`
+		// CacheMB is how many megabytes the songs kept on disk may take; 0
+		// keeps none.
+		CacheMB int `json:"cacheMB"`
+		// CloseAction determines behavior when closing the window: "ask", "minimize", or "close" (referencing AlgerMusicPlayer)
+		CloseAction string `json:"closeAction,omitempty"`
 		// SearchHistory keeps submitted keywords, most recent first.
 		SearchHistory []string `json:"searchHistory,omitempty"`
 		// LocalDirs keeps user-selected directories for local music scanning.

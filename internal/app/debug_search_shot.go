@@ -37,36 +37,15 @@ func init() {
 				step(0, func() {
 					a.open(route{page: pageDramas})
 				})
-				time.Sleep(2500 * time.Millisecond)
-				shot("flashmusic_vision_dramas", a.win)
-
-				// Step 2: Open 潮流短视频 (pageShortVideos)
-				step(0, func() {
-					a.open(route{page: pageShortVideos})
-				})
-				time.Sleep(2500 * time.Millisecond)
-				shot("flashmusic_vision_shortvideos", a.win)
-
-				// Step 3: Open 院线影视 (pageCinema)
-				step(0, func() {
-					a.open(route{page: pageCinema})
-				})
-				time.Sleep(2500 * time.Millisecond)
-				shot("flashmusic_vision_cinema", a.win)
-
-				// Step 4: Open 互动直播 (pageLive)
-				step(0, func() {
-					a.open(route{page: pageLive})
-				})
 				time.Sleep(2000 * time.Millisecond)
-				shot("flashmusic_vision_live", a.win)
 
-				// Step 5: Open 语音空间 (pageVoiceRoom)
+				// Step 2: Trigger Close Modal
 				step(0, func() {
-					a.open(route{page: pageVoiceRoom})
+					a.closeConfirm.open = true
+					a.closeConfirm.remember = true
 				})
-				time.Sleep(2000 * time.Millisecond)
-				shot("flashmusic_vision_voiceroom", a.win)
+				time.Sleep(1000 * time.Millisecond)
+				shot("flashmusic_close_confirm_modal", a.win)
 
 			println("[FM_SHOT] All shots finished.")
 			time.Sleep(500 * time.Millisecond)

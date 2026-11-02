@@ -75,31 +75,59 @@ func (a *app) settingsView(c *ui.Context) {
 			})
 		}
 
-		// Only on macOS: elsewhere the icon is always in the notification
-		// area.
-		if runtime.GOOS == "darwin" {
 			group("通用", func() {
-				row("应用图标", "显示在菜单栏时，关闭窗口后可从菜单栏图标打开", func() {
-					labels := make([]string, len(appIcons))
-					chosen := appIcons[0].label
-					for i, ic := range appIcons {
-						labels[i] = ic.label
-						if ic.id == s.AppIcon {
-							chosen = ic.label
+				// 关闭行为设置 (对齐 AlgerMusicPlayer: 询问 / 最小化到托盘 / 退出应用)
+				row("关闭行为", "选择关闭窗口时的行为", func() {
+					options := []struct {
+						id    string
+						label string
+					}{
+						{"ask", "每次询问"},
+						{"minimize", "最小化到托盘"},
+						{"close", "直接退出应用"},
+					}
+					labels := make([]string, len(options))
+					chosen := options[0].label
+					for i, opt := range options {
+						labels[i] = opt.label
+						if opt.id == s.CloseAction || (s.CloseAction == "" && opt.id == "ask") {
+							chosen = opt.label
 						}
 					}
-					if ui.Select(c.Key("app-icon"), &chosen, labels).Label("应用图标").Width(150).Changed() {
-						for _, ic := range appIcons {
-							if ic.label == chosen {
-								s.AppIcon = ic.id
+					if ui.Select(c.Key("close-action-select"), &chosen, labels).Label("关闭行为").Width(150).Changed() {
+						for _, opt := range options {
+							if opt.label == chosen {
+								s.CloseAction = opt.id
 							}
 						}
 						a.changed()
-						a.changeAppIcon()
 					}
 				})
+
+				// Only on macOS: elsewhere the icon is always in the notification
+				// area.
+				if runtime.GOOS == "darwin" {
+					row("应用图标", "显示在菜单栏时，关闭窗口后可从菜单栏图标打开", func() {
+						labels := make([]string, len(appIcons))
+						chosen := appIcons[0].label
+						for i, ic := range appIcons {
+							labels[i] = ic.label
+							if ic.id == s.AppIcon {
+								chosen = ic.label
+							}
+						}
+						if ui.Select(c.Key("app-icon"), &chosen, labels).Label("应用图标").Width(150).Changed() {
+							for _, ic := range appIcons {
+								if ic.label == chosen {
+									s.AppIcon = ic.id
+								}
+							}
+							a.changed()
+							a.changeAppIcon()
+						}
+					})
+				}
 			})
-		}
 
 		// Only on macOS, the one with a notch player.
 		if a.notch != nil {

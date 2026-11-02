@@ -72,9 +72,10 @@ type app struct {
 	featCategory string             // category pill for 推荐歌单
 	login        loginState
 	accountOpen  bool           // the dropdown of the account row shows
-	naming       nameDialog     // the name of a playlist asked for
-	deleting     deleteDialog   // whether to delete a playlist, asked
-	liked        map[int64]bool // the songs the listener likes
+		naming       nameDialog     // the name of a playlist asked for
+		deleting     deleteDialog   // whether to delete a playlist, asked
+		closeConfirm closeConfirmDialog // confirm modal when closing the main window
+		liked        map[int64]bool // the songs the listener likes
 	toast        string         // a message to show once
 	picked       pickedUp       // the song a login picked up, waiting to play
 
@@ -433,20 +434,32 @@ func Run() error {
 		if shotHook != nil {
 			shotHook(a)
 		}
-		// Closing the window hides it: music plays on, and the Dock icon
-		// or the tray's brings it back. A Linux desktop without a tray
-		// has neither, so there closing it quits.
-		a.win.OnClose(func(e *mygo.CloseEvent) {
-			if a.quitting {
-				return
-			}
-			e.PreventDefault()
-			if runtime.GOOS == "darwin" || a.tray != nil {
-				a.win.Hide()
-			} else {
-				mygo.App.Quit()
-			}
-		})
+			// Closing the window: follow user preference (ask / minimize / close)
+			a.win.OnClose(func(e *mygo.CloseEvent) {
+				if a.quitting {
+					return
+				}
+				e.PreventDefault()
+				action := a.settings.CloseAction
+				if action == "" {
+					action = "ask"
+				}
+				switch action {
+				case "minimize":
+					if runtime.GOOS == "darwin" || a.tray != nil {
+						a.win.Hide()
+					} else {
+						a.win.Minimize()
+					}
+				case "close":
+					a.quitting = true
+					mygo.App.Quit()
+				default: // "ask"
+					a.closeConfirm.open = true
+					a.closeConfirm.remember = false
+					a.redraw()
+				}
+			})
 	})
 	mygo.App.OnBeforeQuit(func(*mygo.QuitEvent) {
 		a.quitting = true
