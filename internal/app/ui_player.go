@@ -4,7 +4,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/player"
@@ -312,7 +311,7 @@ func (a *app) volumeSlider(c *ui.Context, color, track ui.Color, width float32) 
 // transport is the row of controls: shuffle, previous, play, next, repeat.
 func (a *app) transport(c *ui.Context, color, dim, on ui.Color, size float32) {
 	pl := a.pl
-	ui.Row(c).Gap(size * 0.5).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
+	ui.Row(c).Gap(size * 0.55).AlignItems(ui.Center).Justify(ui.Center).Children(func() {
 		shuffle := dim
 		if pl.Shuffle() {
 			shuffle = on
@@ -323,7 +322,20 @@ func (a *app) transport(c *ui.Context, color, dim, on ui.Color, size float32) {
 		if iconButton(c.Key("prev"), iconPrev, size*0.85, color, "上一首").Clicked() {
 			pl.Prev()
 		}
-		if playButton(c.Key("play"), pl.Playing(), size*1.25, color).Clicked() {
+		// Modern circular glowing play button (Alger / Apple Music style)
+		playBtn := ui.ButtonBase(c.Key("play")).Size(size*1.35, size*1.35).Radius(size*0.675).
+			Background(on).Center().Shadow(0, 4, 14, 0, on.Alpha(0.45)).FocusRing(false).Label("播放/暂停")
+		if playBtn.Hovered() {
+			playBtn.Background(on.Alpha(0.85))
+		}
+		playBtn.Children(func() {
+			pIcon := iconPlay
+			if pl.Playing() {
+				pIcon = iconPause
+			}
+			ui.Icon(c, pIcon).Size(size*0.7, size*0.7).TextColor(a.pal.onAccent)
+		})
+		if playBtn.Clicked() {
 			pl.TogglePlay()
 		}
 		if iconButton(c.Key("next"), iconNext, size*0.85, color, "下一首").Clicked() {
@@ -353,16 +365,13 @@ func (a *app) playerBar(c *ui.Context) {
 		// Played, or gone: it says what it is again.
 		a.picked = pickedUp{}
 	}
-	// Over the foot of the page: while content is under it, its edge frosts
-	// it, with a hairline along the top.
-	edge := ui.Box(c.Key("bottom-edge")).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).
-		Material(glass.ScrollEdge{Hard: true, Bottom: true, Background: p.bg})
-	edge.Opacity(edgeShown(edge, a.underBottom))
-	// The controls keep the middle, between sides that share what is left:
-	// narrower, the middle gives up to 140 DIPs, and what plays keeps room
-	// for its cover, some of its title and its heart.
+	// Obsidian frosted glass background bar with hairline border & floating shadow
+	ui.Box(c.Key("playerbar-bg")).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).
+		Background(p.card.Alpha(0.96)).Border(1, p.hairline.Alpha(0.35)).
+		Shadow(0, -6, 24, 0, ui.RGBA(0, 0, 0, 0.35))
+
 	const controls = 3*32 + 2*4 // lyrics, queue and the speaker
-	ui.Row(c).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).PaddingX(20).Gap(20).AlignItems(ui.Center).Children(func() {
+	ui.Row(c).Absolute().Left(0).Right(0).Bottom(0).Height(playerBarHeight).PaddingX(24).Gap(20).AlignItems(ui.Center).Children(func() {
 		// What plays.
 		ui.Row(c).Grow(1).Basis(0).MinWidth(150).Children(func() {
 			if tr == nil {
@@ -377,17 +386,25 @@ func (a *app) playerBar(c *ui.Context) {
 			info := ui.ButtonBase(c.Key("info")).Gap(12).AlignItems(ui.Center).FocusRing(false).Shrink(1).MinWidth(0).Label("打开正在播放")
 			hovered := info.Hovered()
 			info.Children(func() {
-				ui.Box(c).Size(48, 48).Shrink(0).Children(func() {
-					a.cover(c, tr.Album.PicURL, 120, 48, 8).Shadow(0, 2, 8, 0, p.cardShade)
+				ui.Box(c).Size(50, 50).Radius(10).Clip().Border(1, ui.RGBA(255, 255, 255, 0.12)).
+					Shadow(0, 4, 12, 0, ui.RGBA(0, 0, 0, 0.4)).Children(func() {
+					a.cover(c, tr.Album.PicURL, 120, 50, 10)
 					if hovered {
-						ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(8).Center().
-							Background(ui.RGBA(0, 0, 0, 0.35)).TextColor(ui.RGB(255, 255, 255)).Children(func() {
-							ui.Icon(c, iconDown).Size(18, 18).Rotate(180)
+						ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Radius(10).Center().
+							Background(ui.RGBA(0, 0, 0, 0.45)).TextColor(white).Children(func() {
+							ui.Icon(c, iconDown).Size(20, 20).Rotate(180)
 						})
 					}
 				})
 				ui.Column(c).Shrink(1).MinWidth(0).Gap(3).Children(func() {
-					ui.Text(c, tr.Name).FontSize(13.5).FontWeight(600).SingleLine()
+					ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+						ui.Text(c, tr.Name).FontSize(13.5).FontWeight(600).SingleLine()
+						// Alger-style SQ audio badge
+						ui.Box(c).Padding(1, 4, 1, 4).Radius(3).Background(p.accent.Alpha(0.15)).
+							Border(1, p.accent.Alpha(0.35)).Children(func() {
+							ui.Text(c, "SQ 320K").FontSize(9.5).FontWeight(700).TextColor(p.accent)
+						})
+					})
 					// What it is waiting on shows in place of the artists.
 					var sub string
 					color := p.muted
@@ -408,6 +425,7 @@ func (a *app) playerBar(c *ui.Context) {
 			})
 			if info.Clicked() {
 				a.nowPlaying = true
+				a.npPane = a.lyricsPaneChosen()
 			}
 			a.likeButton(c.Key("like"), tr, 16, p.muted).Margin(0, 0, 0, 4).Shrink(0)
 		})
@@ -415,7 +433,7 @@ func (a *app) playerBar(c *ui.Context) {
 		// Controls over the progress.
 		ui.Column(c).Width(440).Shrink(1).MinWidth(300).Gap(0).AlignItems(ui.Stretch).Children(func() {
 			a.transport(c, p.text, p.muted, p.accent, 18)
-			ui.Row(c).Gap(10).AlignItems(ui.Center).Margin(-4, 0, 0, 0).Children(func() {
+			ui.Row(c).Gap(10).AlignItems(ui.Center).Margin(-2, 0, 0, 0).Children(func() {
 				ui.Text(c, clock(pl.Position())).FontSize(10.5).FontFeatures("tnum").TextColor(p.faint).Width(34).TextAlign(ui.End)
 				a.scrubber(c.Key("bar-scrub"), &a.barScrub, p.press, p.text.Alpha(0.75), 14, p.accent).Grow(1)
 				ui.Text(c, clock(pl.Duration())).FontSize(10.5).FontFeatures("tnum").TextColor(p.faint).Width(34)

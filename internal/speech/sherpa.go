@@ -185,10 +185,17 @@ func libNames() (api, runtimeLib string) {
 var ErrUnavailable = errors.New("speech: no sherpa-onnx for this platform")
 
 // libDir returns the directory holding the libraries and the VAD:
-// SHERPA_ONNX_DIR, as tests set it, else where Download puts them in root.
+// SHERPA_ONNX_DIR, as tests set it, or next to executable (bundled resources),
+// else where Download puts them in root.
 func libDir(root string) string {
 	if dir := os.Getenv("SHERPA_ONNX_DIR"); dir != "" {
 		return dir
+	}
+	if exe, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exe)
+		if _, err := os.Stat(filepath.Join(exeDir, "onnxruntime.dll")); err == nil {
+			return exeDir
+		}
 	}
 	return filepath.Join(root, "sherpa-onnx-"+libVersion)
 }
@@ -196,7 +203,7 @@ func libDir(root string) string {
 // Available reports whether there is speech recognition for this
 // platform, to download.
 func Available() bool {
-	return len(libFiles[platform()]) > 0 || os.Getenv("SHERPA_ONNX_DIR") != ""
+	return len(natives()) > 0 || os.Getenv("SHERPA_ONNX_DIR") != ""
 }
 
 func platform() string { return runtime.GOOS + "-" + runtime.GOARCH }

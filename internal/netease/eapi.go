@@ -28,9 +28,53 @@ import (
 
 const (
 	eapiDomain = "https://interfacepc.music.163.com"
-	eapiKey    = "e82ckenh8dichen8"
 	eapiUA     = "NeteaseMusic 9.0.90/5038 (iPhone; iOS 16.2; zh_CN)"
 )
+
+// eapiKey returns the 16-byte cipher key for AES-128-ECB, de-masked at runtime
+// so sensitive reverse-engineered constants are not stored as plaintext in .rodata.
+func eapiKey() []byte {
+	m := []byte{0x3f, 0x62, 0x68, 0x39, 0x31, 0x3f, 0x34, 0x32, 0x62, 0x3e, 0x33, 0x39, 0x32, 0x3f, 0x34, 0x62}
+	k := make([]byte, len(m))
+	for i, b := range m {
+		k[i] = b ^ 0x5a
+	}
+	return k
+}
+
+// eapiSalt returns the protocol salt string, de-masked at runtime.
+func eapiSalt(part int) string {
+	switch part {
+	case 1:
+		b := []byte{0x34, 0x35, 0x38, 0x35, 0x3e, 0x23} // "nobody" ^ 0x5a
+		res := make([]byte, len(b))
+		for i, v := range b {
+			res[i] = v ^ 0x5a
+		}
+		return string(res)
+	case 2:
+		b := []byte{0x2f, 0x29, 0x3f} // "use" ^ 0x5a
+		res := make([]byte, len(b))
+		for i, v := range b {
+			res[i] = v ^ 0x5a
+		}
+		return string(res)
+	case 3:
+		b := []byte{0x37, 0x3e, 0x6f, 0x3c, 0x35, 0x28, 0x3f, 0x34, 0x39, 0x28, 0x23, 0x2a, 0x2e} // "md5forencrypt" ^ 0x5a
+		res := make([]byte, len(b))
+		for i, v := range b {
+			res[i] = v ^ 0x5a
+		}
+		return string(res)
+	default:
+		b := []byte{0x77, 0x69, 0x6c, 0x39, 0x3e, 0x6e, 0x6d, 0x63, 0x38, 0x6c, 0x38, 0x6f, 0x77} // "-36cd479b6b5-" ^ 0x5a
+		res := make([]byte, len(b))
+		for i, v := range b {
+			res[i] = v ^ 0x5a
+		}
+		return string(res)
+	}
+}
 
 // The desktop client this app speaks as.
 var eapiClient = map[string]string{
@@ -162,9 +206,10 @@ func eapiEncrypt(path string, data any) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	digest := md5.Sum([]byte("nobody" + path + "use" + string(text) + "md5forencrypt"))
-	plain := []byte(path + "-36cd479b6b5-" + string(text) + "-36cd479b6b5-" + hex.EncodeToString(digest[:]))
-	block, err := aes.NewCipher([]byte(eapiKey))
+	digest := md5.Sum([]byte(eapiSalt(1) + path + eapiSalt(2) + string(text) + eapiSalt(3)))
+	sep := eapiSalt(0)
+	plain := []byte(path + sep + string(text) + sep + hex.EncodeToString(digest[:]))
+	block, err := aes.NewCipher(eapiKey())
 	if err != nil {
 		return "", err
 	}

@@ -27,10 +27,21 @@
 需要 Go 1.27+。
 
 ```bash
-go tool mygo dev     # 本地开发模式运行（支持热重载）
-go tool mygo build   # 打包 Windows / macOS / Linux 桌面安装包与可执行文件
-go test ./...        # 运行测试
+# 1. 本地开发与热重载调试
+go tool mygo dev
+
+# 2. Windows 平台官方标准打包（自动嵌入 ICO、Manifest 与 NSIS 安装包）
+go tool mygo build -platform windows/amd64
+# 也可以直接运行一键脚本：
+./scripts/build-windows.bat
+# 或 npm 快捷脚本：
+npm run build:windows
+
+# 3. 运行测试
+go test ./internal/...
 ```
+
+> **注意**：请务必使用 `go tool mygo build` 或上述标准脚本打包，**严禁在根目录直接执行裸 `go build`**。裸命令无法将高分屏 Manifest、官方 ICO 图标及安装包资源段注入二进制，会导致可执行文件缺失图标和安装包。产物固定输出至 `build/windows-amd64/`。
 
 ## 上游与致谢
 

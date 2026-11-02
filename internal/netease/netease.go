@@ -82,19 +82,11 @@ func (t *Track) ArtistNames() string {
 	return strings.Join(names, ", ")
 }
 
-// Playable reports whether the listener can play the whole track: as their
-// privilege says, or else as its fee does for anyone, VIP songs (1) and
-// paid albums (4) giving only a preview.
+// Playable reports whether the listener can play the whole track.
+// Multi-source unblocking enables full playback for all catalog items,
+// bypassing VIP restrictions.
 func (t *Track) Playable() bool {
-	if t.ProgramID > 0 {
-		// An episode's audio has no privilege: whether it streams, as a
-		// paid one bought, is up to its stream.
-		return true
-	}
-	if t.Privilege != nil {
-		return t.Privilege.St >= 0 && t.Privilege.Pl > 0
-	}
-	return t.Fee != 1 && t.Fee != 4
+	return true
 }
 
 func (t *Track) Length() time.Duration { return time.Duration(t.Duration) * time.Millisecond }
@@ -212,6 +204,50 @@ func FeaturedPlaylists(limit int) ([]Playlist, error) {
 	}
 	err := get("/api/personalized/playlist", url.Values{"limit": {strconv.Itoa(limit)}}, &res)
 	return res.Result, err
+}
+
+// PlaylistCatalogue returns the list of all category tags supported by NetEase Cloud Music (/api/playlist/catalogue).
+func PlaylistCatalogue() ([]string, error) {
+	var res struct {
+		Sub []struct {
+			Name string `json:"name"`
+		} `json:"sub"`
+	}
+	if err := get("/api/playlist/catalogue", nil, &res); err != nil {
+		return nil, err
+	}
+	cats := make([]string, 0, len(res.Sub))
+	for _, s := range res.Sub {
+		if s.Name != "" {
+			cats = append(cats, s.Name)
+		}
+	}
+	return cats, nil
+}
+
+// PlaylistsByCat returns the playlists of a specific category from NetEase Cloud Music (/api/playlist/list).
+func PlaylistsByCat(cat string, order string, limit, offset int) ([]Playlist, bool, error) {
+	if cat == "全部" || cat == "每日推荐" || cat == "" {
+		cat = "全部"
+	}
+	if order == "" {
+		order = "hot"
+	}
+	var res struct {
+		Playlists []Playlist `json:"playlists"`
+		Total     int        `json:"total"`
+		More      bool       `json:"more"`
+	}
+	q := url.Values{
+		"cat":    {cat},
+		"order":  {order},
+		"limit":  {strconv.Itoa(limit)},
+		"offset": {strconv.Itoa(offset)},
+	}
+	if err := get("/api/playlist/list", q, &res); err != nil {
+		return nil, false, err
+	}
+	return res.Playlists, res.More, nil
 }
 
 // DailySongs returns the day's recommended songs: chosen for the listener
@@ -407,9 +443,67 @@ var Levels = []string{"standard", "higher", "exhigh", "lossless", "hires"}
 // Lossless reports whether level streams FLAC.
 func Lossless(level string) bool { return level == "lossless" || level == "hires" }
 
+// unblockSong queries the local multi-source unblock service for VIP / restricted songs.
+func unblockSong(id int64, name, artist, album, level string) (*Stream, error) {
+	if name == "" {
+		if details, err := SongDetails([]int64{id}); err == nil && len(details) > 0 {
+			name = details[0].Name
+			artist = details[0].ArtistNames()
+			album = details[0].Album.Name
+		}
+	}
+	unblockURL := fmt.Sprintf("http://127.0.0.1:8901/api/music/unblock?id=%d&name=%s&artist=%s&album=%s",
+		id, url.QueryEscape(name), url.QueryEscape(artist), url.QueryEscape(album))
+
+	c := &http.Client{Timeout: 10 * time.Second}
+	resp, err := c.Get(unblockURL)
+	if err != nil {
+		return nil, ErrUnavailable
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, ErrUnavailable
+	}
+
+	var uRes struct {
+		OK     bool   `json:"ok"`
+		URL    string `json:"url"`
+		Size   int64  `json:"size"`
+		BR     int    `json:"br"`
+		Type   string `json:"type"`
+		Source string `json:"source"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&uRes); err != nil || !uRes.OK || uRes.URL == "" {
+		return nil, ErrUnavailable
+	}
+
+	format := uRes.Type
+	if format == "" {
+		format = "mp3"
+	}
+	return &Stream{
+		URL:   uRes.URL,
+		Size:  uRes.Size,
+		Type:  format,
+		Level: level,
+	}, nil
+}
+
+// SongURLForTrack resolves the stream for a track, trying official eapi first
+// and falling back to multi-source unblocking for VIP/restricted tracks.
+func SongURLForTrack(t Track, level string) (*Stream, error) {
+	st, err := SongURL(t.ID, level)
+	if err == nil && st != nil {
+		return st, nil
+	}
+	return unblockSong(t.ID, t.Name, t.ArtistNames(), t.Album.Name, level)
+}
+
 // SongURL returns where to stream a track, MP3 or FLAC, at level (one of
 // Levels) or the best below it the listener may play. It goes through
 // the eapi, which carries the session, so VIP songs play for subscribers.
+// If unavailable on NetEase, it automatically falls back to multi-source unblock.
 func SongURL(id int64, level string) (*Stream, error) {
 	var res struct {
 		Code int `json:"code"`
@@ -426,20 +520,20 @@ func SongURL(id int64, level string) (*Stream, error) {
 	}
 	data := map[string]any{"ids": fmt.Sprintf("[%d]", id), "level": level, "encodeType": encode}
 	if err := eapiPost("/api/song/enhance/player/url/v1", data, &res); err != nil {
-		return nil, err
+		return unblockSong(id, "", "", "", level)
 	}
 	if len(res.Data) == 0 || res.Data[0].URL == "" {
-		return nil, ErrUnavailable
+		return unblockSong(id, "", "", "", level)
 	}
 	d := res.Data[0]
-	// A preview of a VIP song is no song.
+	// A preview of a VIP song is resolved through multi-source unblock.
 	if len(d.FreeTrialInfo) > 0 && string(d.FreeTrialInfo) != "null" {
-		return nil, ErrUnavailable
+		return unblockSong(id, "", "", "", level)
 	}
 	s := d.Stream
 	s.Type = strings.ToLower(s.Type)
 	if s.Type != "" && s.Type != "mp3" && s.Type != "flac" {
-		return nil, fmt.Errorf("unsupported format %s", s.Type)
+		return unblockSong(id, "", "", "", level)
 	}
 	if d.Peak != nil {
 		s.Peak = *d.Peak
@@ -485,6 +579,9 @@ func Lyrics(id int64) (lrc, translation, yrc string, err error) {
 func Sized(pic string, n int) string {
 	if pic == "" {
 		return ""
+	}
+	if strings.HasPrefix(pic, "flashmusic://") || strings.HasPrefix(pic, "file://") {
+		return pic
 	}
 	pic = strings.Replace(pic, "http://", "https://", 1)
 	return fmt.Sprintf("%s?param=%dy%d", pic, n, n)

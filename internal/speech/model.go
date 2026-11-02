@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 )
@@ -62,7 +63,12 @@ type nativeFile struct {
 // natives returns the libraries of this platform and the VAD, which
 // Download downloads with the model; tests replace it.
 var natives = func() []nativeFile {
-	return append(slices.Clone(libFiles[platform()]), vadFile)
+	v := vadFile
+	if runtime.GOOS == "windows" {
+		v.asset = ""
+		v.gzSize = 0
+	}
+	return append(slices.Clone(libFiles[platform()]), v)
 }
 
 // nativeURL is where a native file downloads from; tests replace it.
@@ -116,14 +122,17 @@ func Download(ctx context.Context, root string, progress func(done, total int64)
 	if err := os.MkdirAll(libs, 0o755); err != nil {
 		return err
 	}
-	for _, f := range natives() {
-		path := filepath.Join(libs, f.name)
-		if info, err := os.Stat(path); err == nil && info.Size() == f.size && digest(path) == f.sha256 {
-			before += f.gzSize
-			progress(before, total)
-			continue
-		}
-		gz := modelFile{path: f.name + ".gz", size: f.gzSize, sha256: f.gzSHA256}
+		for _, f := range natives() {
+			path := filepath.Join(libs, f.name)
+			if info, err := os.Stat(path); err == nil && info.Size() == f.size && digest(path) == f.sha256 {
+				before += f.gzSize
+				progress(before, total)
+				continue
+			}
+			if f.asset == "" {
+				continue
+			}
+			gz := modelFile{path: f.name + ".gz", size: f.gzSize, sha256: f.gzSHA256}
 		err := fetch(ctx, nativeURL(f), path+".gz", gz, func(n int64) { progress(before+n, total) })
 		if err == nil {
 			err = gunzip(path+".gz", path, f)

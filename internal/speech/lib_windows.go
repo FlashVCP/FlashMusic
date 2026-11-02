@@ -1,9 +1,10 @@
+//go:build windows
+
 package speech
 
 import "syscall"
 
-// openLibrary loads the DLL at path. A DLL it imports by name, as the API
-// imports onnxruntime.dll, is the one loaded already.
+// openLibrary loads the pre-bundled DLL from the app directory.
 func openLibrary(path string) (uintptr, error) {
 	h, err := syscall.LoadLibrary(path)
 	return uintptr(h), err

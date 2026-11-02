@@ -146,16 +146,16 @@ func (a *app) userPage(c *ui.Context) {
 		})
 		a.section(c, "创建的歌单")
 		switch {
-		case d.loading > 0:
-			a.playlistCardsSkeleton(c, a.pageShimmer(c), a.columns(c, 168), 168, false)
-		case len(d.playlists) == 0:
-			a.empty(c, "暂无公开歌单")
-		default:
-			ui.Grid(c).Columns(a.columns(c, 168)).GapX(20).GapY(28).Children(func() {
-				for i := range d.playlists {
-					a.playlistCard(c.Key(d.playlists[i].ID), &d.playlists[i])
-				}
-			})
+			case d.loading > 0:
+				a.playlistCardsSkeleton(c, a.pageShimmer(c), a.columns(c, 210), 210, false)
+			case len(d.playlists) == 0:
+				a.empty(c, "暂无公开歌单")
+			default:
+				ui.Grid(c).Columns(a.columns(c, 210)).GapX(20).GapY(28).Children(func() {
+					for i := range d.playlists {
+						a.playlistCard(c.Key(d.playlists[i].ID), &d.playlists[i])
+					}
+				})
 		}
 		if own && d.podcastsShown {
 			a.section(c, "订阅的播客")

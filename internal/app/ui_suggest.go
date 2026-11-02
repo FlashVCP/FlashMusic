@@ -93,7 +93,7 @@ func suggestionList(res netease.Suggestions) []suggestion {
 // before.
 func (a *app) searchField(c *ui.Context) {
 	p := a.pal
-	field := ui.Row(c).Height(32).PaddingX(10).Gap(7).Radius(9).AlignItems(ui.Center).Margin(0, 0, 14, 0)
+	field := ui.Row(c).Height(32).PaddingX(10).Gap(7).Radius(9).AlignItems(ui.Center).Margin(0, 0, 8, 0)
 	if c.Focused(a.searchBox) {
 		field.Background(p.bg).Shadow(0, 0, 0, 3, p.accent.Alpha(0.25)).Border(1, p.accent.Alpha(0.6))
 	} else {

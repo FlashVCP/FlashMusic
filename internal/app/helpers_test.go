@@ -9,8 +9,9 @@ func newTestApp() *app {
 	a := &app{
 		playlists: map[int64]*netease.Playlist{}, loadingPl: map[int64]bool{}, plErr: map[int64]string{},
 		artists: map[int64]*artistData{}, albums: map[int64]*albumData{}, users: map[int64]*userData{},
-		podcasts: map[int64]*podcastData{}, podcastTab: &podcastTab{}, searches: map[route]*searchData{},
-		lyricAt: -1, queueAt: -1,
+			podcasts: map[int64]*podcastData{}, podcastTab: &podcastTab{}, searches: map[route]*searchData{},
+			catPlaylists: map[string][]netease.Playlist{}, searchCat: "每日推荐",
+			lyricAt: -1, queueAt: -1,
 	}
 	a.art = newArtCache(func(func()) {})
 	a.pl = player.New(func(func()) {})

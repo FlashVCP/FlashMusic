@@ -354,7 +354,11 @@ func (cs *commentState) setLiked(id int64, like bool) {
 }
 
 // avatar shows a listener's picture, round, over empty while it loads.
+// When url is empty, it gracefully falls back to the official software LOGO.
 func (a *app) avatar(c *ui.Context, url string, size float32, empty ui.Color) {
+	if url == "" {
+		url = "flashmusic://brand/logo"
+	}
 	bmp := bitmap(a.art.get(netease.Sized(url, int(size*3)), false))
 	box := ui.Box(c).Size(size, size).Radius(size / 2).Shrink(0)
 	in := artIn(box, bmp)

@@ -3,12 +3,14 @@ package app
 import (
 	"fmt"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/egoist/mygo/plugins/glass"
 	"github.com/egoist/mygo/ui"
 
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/vcp"
 )
 
 const sidebarWidth = 232
@@ -27,20 +29,26 @@ func (a *app) view(c *ui.Context) {
 		c.Root().Background(ui.Transparent)
 	}
 	root := ui.Box(c).Fill()
-	if !c.Focused(a.searchBox) {
-		// Space plays and pauses wherever the focus is, as in Music. On
-		// the container around everything, it comes before a button the
-		// pointer focused, which would take Space as a click; on the
-		// window, it would come after.
-		root.OnShortcut(0, ui.KeySpace, a.pl.TogglePlay)
-		// And where nothing has the focus, as once Now Playing covers the
-		// button that had it.
-		c.OnShortcut(0, ui.KeySpace, a.pl.TogglePlay)
-	}
-	npOpen, npSettled := a.npState(c)
-	root.Children(func() {
-		page := ui.Row(c).Fill().AlignItems(ui.Stretch)
-		page.Children(func() {
+		if !c.Focused(a.searchBox) {
+			// Space plays and pauses wherever the focus is, as in Music. On
+			// the container around everything, it comes before a button the
+			// pointer focused, which would take Space as a click; on the
+			// window, it would come after.
+			root.OnShortcut(0, ui.KeySpace, a.handleSpace)
+			// And where nothing has the focus, as once Now Playing covers the
+			// button that had it.
+			c.OnShortcut(0, ui.KeySpace, a.handleSpace)
+		}
+		npOpen, npSettled := a.npState(c)
+		root.Children(func() {
+			// 全屏沉浸播放：当窗口全屏且处于视频播放中时，视频画面铺满整个屏幕
+			if a.win != nil && a.win.IsFullScreen() && (a.dramaPlaying || a.svPlaying) && a.videoWeb != nil {
+				ui.WebView(c, a.videoWeb).Fill()
+				return
+			}
+
+			page := ui.Row(c).Fill().AlignItems(ui.Stretch)
+			page.Children(func() {
 			if npOpen && npSettled {
 				// Covered by Now Playing: not built, which would cost each
 				// of its frames as much again as the stage itself. Where
@@ -55,17 +63,22 @@ func (a *app) view(c *ui.Context) {
 			side.Children(func() { a.sidebar(c) })
 			// Keyed, so that a popover of the sidebar opening or closing
 			// keeps what the page and its bars hold, their edges' fades.
-			ui.Box(c.Key("main")).Grow(1).Background(p.bg).BorderWidth(0, 0, 0, 1).BorderColor(p.hairline).Children(func() {
-				a.content(c)
-				// The bars float over the page, which scrolls under them:
-				// positioned, they paint over it.
-				a.pageTop(c)
-				a.playerBar(c)
-			})
+				ui.Box(c.Key("main")).Grow(1).Background(p.bg).BorderWidth(0, 0, 0, 1).BorderColor(p.hairline).Children(func() {
+					a.content(c)
+					// The bars float over the page, which scrolls under them:
+					// positioned, they paint over it.
+					a.pageTop(c)
+					if a.isMusicPage() {
+						a.musicSearchBar(c)
+					}
+					if !a.hidePlayerBar() {
+						a.playerBar(c)
+					}
+				})
 		})
 		a.nowPlayingLayer(c, npOpen, npSettled)
 	})
-		a.loginDialog(c)
+		a.unifiedLoginModal(c)
 		a.playlistNameDialog(c)
 		a.deletePlaylistDialog(c)
 		a.songPropertiesDialog(c)
@@ -83,11 +96,17 @@ func (a *app) shortcuts(c *ui.Context) {
 	c.OnShortcut(0, ui.KeyForward, a.goForward)
 	c.OnShortcut(ui.Cmd, ui.KeyBracketLeft, a.back)
 	c.OnShortcut(ui.Cmd, ui.KeyBracketRight, a.goForward)
-	c.OnShortcut(ui.Cmd, ui.KeyF, func() {
-		a.nowPlaying = false
-		a.searchBox.Focus(c)
-	})
-	if a.nowPlaying {
+		c.OnShortcut(ui.Cmd, ui.KeyF, func() {
+			a.nowPlaying = false
+			a.searchBox.Focus(c)
+		})
+		if a.win != nil && a.win.IsFullScreen() {
+			c.OnShortcut(0, ui.KeyEscape, func() {
+				a.win.SetFullScreen(false)
+				a.redraw()
+			})
+		}
+		if a.nowPlaying {
 		c.OnShortcut(0, ui.KeyEscape, func() { a.nowPlaying = false })
 		// ⌘ and a number choose Now Playing's tab of that place.
 		if a.pl.Current() != nil {
@@ -104,6 +123,9 @@ func (a *app) open(r route) {
 	a.nowPlaying = false
 	if r == a.route {
 		return
+	}
+	if a.svPlaying || a.dramaPlaying {
+		a.stopVideo()
 	}
 	a.history, a.forward = append(a.history, a.route), nil
 	a.show(r)
@@ -133,15 +155,27 @@ func (a *app) load(r route) {
 		a.loadAlbum(r.id)
 	case pageUser:
 		a.loadUser(r.id)
-		case pagePodcast:
-			a.loadPodcast(r.id)
-		case pagePodcasts:
-			a.loadPodcastTab()
-		case pageLocal:
-			if len(a.localTracks) == 0 && !a.localScanning {
-				a.scanLocalDirs()
+	case pagePodcast:
+		a.loadPodcast(r.id)
+	case pagePodcasts:
+		a.loadPodcastTab()
+	case pageLocal:
+		if len(a.localTracks) == 0 && !a.localScanning {
+			a.scanLocalDirs()
+		}
+	case pageDramas:
+		if a.activeDramaID == 0 {
+			if list := vcp.GetDramas(); len(list) > 0 {
+				a.activeDramaID = list[0].ID
 			}
 		}
+	case pageNodeBoard:
+		a.nodeTab = 0
+	case pageNodeStorage:
+		a.nodeTab = 2
+	case pageNodeEarnings:
+		a.nodeTab = 3
+	}
 }
 
 // back goes to the page before, as the back button of a mouse does, or
@@ -173,6 +207,19 @@ func (a *app) goForward() {
 	a.show(r)
 }
 
+func (a *app) sidebarBrandHeader(c *ui.Context) {
+	p := a.pal
+	ui.Row(c.Key("sidebar-brand-header")).Height(38).Padding(2, 6, 2, 6).AlignItems(ui.Center).Gap(10).Margin(0, 0, 4, 0).Children(func() {
+		a.cover(c, "flashmusic://brand/icon", 64, 28, 8).Shadow(0, 2, 6, 0, p.cardShade)
+		ui.Column(c).Grow(1).Gap(1).Children(func() {
+			ui.Row(c).AlignItems(ui.Center).Gap(6).Children(func() {
+				ui.Text(c, "FlashMusic").FontSize(14.5).FontWeight(700).TextColor(p.text)
+			})
+			ui.Text(c, "闪音 · 原生高保真").FontSize(10).FontWeight(500).TextColor(p.muted)
+		})
+	})
+}
+
 func (a *app) sidebar(c *ui.Context) {
 	// Under the window buttons where they sit over the sidebar, as the
 	// traffic lights do; elsewhere, as close to the top as to the sides.
@@ -183,27 +230,58 @@ func (a *app) sidebar(c *ui.Context) {
 	// Where nothing in it takes the press, the sidebar moves the window, as
 	// the title bar it reaches up into would.
 	ui.Column(c).Fill().Padding(top, 14, 14, 14).Gap(4).DragWindow().Children(func() {
-		a.searchField(c)
+		// 品牌 LOGO 与产品标头
+		a.sidebarBrandHeader(c)
+		// 用户头像与登录入口
+		a.sidebarUserHeader(c)
 
-			ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(4).Children(func() {
-				a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
-				a.navItem(c, iconDaily, "每日推荐", route{page: pageDaily})
-				a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
-				a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
-				a.navItem(c, iconPodcast, "播客", route{page: pagePodcasts})
-				a.localNavGroup(c)
-				if a.searched.query != "" {
-					a.navItem(c, iconSearch, "搜索结果", a.searched)
-				}
+			ui.Scroll(c.Key("nav")).TrackScroll(&a.navScroll).Grow(1).Margin(0, -6).Padding(0, 6).Gap(3).Children(func() {
+				// 专区 1: 视界中心 (Video & Live)
+				a.navSectionHeader(c, "视界中心", "VOD·LIVE")
+				a.navItem(c, iconClapperboard, "微短剧场", route{page: pageDramas})
+				a.navItem(c, iconSparkle, "潮流短视频", route{page: pageShortVideos})
+				a.navItem(c, iconBroadcast, "互动直播", route{page: pageLive})
+				a.navItem(c, iconMic, "语音空间", route{page: pageVoiceRoom})
+				a.navItem(c, iconTv, "院线影视", route{page: pageCinema})
+
+					// 专区 2: 音乐世界 (Music World)
+					a.navSectionHeader(c, "音乐世界", "MUSIC")
+					a.localNavGroup(c)
+					a.navItem(c, iconHome, "为你推荐", route{page: pageHome})
+					a.navItem(c, iconSearch, "搜索与发现", route{page: pageSearch})
+					a.navItem(c, iconCharts, "排行榜", route{page: pageCharts})
+					a.navItem(c, iconPodcast, "电台主播", route{page: pagePodcasts})
+					a.navItem(c, iconRadio, "私人 FM", route{page: pageFM})
+					if a.searched.query != "" {
+						a.navItem(c, iconSearch, "搜索："+a.searched.query, a.searched)
+					}
 				a.myPlaylists(c, "我的歌单", a.mine, true, &a.mineCollapsed)
 				a.myPlaylists(c, "收藏的歌单", a.saved, false, &a.savedCollapsed)
+
+				// 专区 3: 边缘节点 (Cloud Node)
+				a.navSectionHeader(c, "边缘节点", "ONLINE")
+				a.navItem(c, iconServer, "节点看板", route{page: pageNodeBoard})
+				a.navItem(c, iconFolder, "缓存空间", route{page: pageNodeStorage})
+				a.navItem(c, iconCoins, "收益中心", route{page: pageNodeEarnings})
 			})
 
-		// What plays, as a card at the foot of the sidebar, over who listens.
-		if tr := a.pl.Current(); tr != nil {
-			a.sidebarNowPlaying(c, tr)
-		}
+			// What plays, as a card at the foot of the sidebar, over who listens.
+			if tr := a.pl.Current(); tr != nil && !a.hidePlayerBar() {
+				a.sidebarNowPlaying(c, tr)
+			}
 		a.accountRow(c)
+		})
+}
+
+func (a *app) navSectionHeader(c *ui.Context, label string, tag string) {
+	p := a.pal
+	ui.Row(c.Key("sec-" + label)).AlignItems(ui.Center).Margin(14, 8, 4, 8).Gap(6).Children(func() {
+		ui.Text(c, label).FontSize(11).FontWeight(700).TextColor(p.faint)
+		if tag != "" {
+			ui.Box(c).Padding(1, 5, 1, 5).Radius(4).Background(p.press).Children(func() {
+				ui.Text(c, tag).FontSize(9.5).FontWeight(600).TextColor(p.accent)
+			})
+		}
 	})
 }
 
@@ -345,7 +423,19 @@ func (a *app) sidebarNowPlaying(c *ui.Context, tr *netease.Track) {
 const playerBarHeight = 84
 
 // pageGap is the room between the bar over a page and its content.
-const pageGap = 12
+const (
+	pageGap        = 12
+	musicBarHeight = float32(48)
+)
+
+func (a *app) isMusicPage() bool {
+	switch a.route.page {
+	case pageHome, pageDaily, pageCharts, pagePlaylist, pageSearch, pageFM, pageArtist, pageAlbum, pageUser, pagePodcast, pagePodcasts, pageLocal:
+		return true
+	default:
+		return false
+	}
+}
 
 // insets returns the room the bars over a page take at its top and its
 // bottom: pages pad their content by it, and scroll under the bars.
@@ -355,7 +445,41 @@ func (a *app) insets(c *ui.Context) (top, bottom float32) {
 		// The edge reaches a little below the traffic lights' strip.
 		top += topEdgePad
 	}
+	if a.isMusicPage() {
+		top += musicBarHeight
+	}
+	if a.hidePlayerBar() {
+		return top, 0
+	}
 	return top, playerBarHeight
+}
+
+// hidePlayerBar reports whether the bottom music player bar should be suppressed,
+// e.g., when the user is inside the Short Drama theater or playing video content,
+// preventing visual clutter and confusion between music and video controls.
+func (a *app) hidePlayerBar() bool {
+	if a.route.page == pageDramas && a.activeDramaTab == 1 {
+		return true
+	}
+	if a.route.page == pageShortVideos {
+		return true
+	}
+	if a.dramaPlaying || a.svPlaying {
+		return true
+	}
+	return false
+}
+
+// handleSpace toggles play/pause for the active media context (drama video in theater mode, or music).
+func (a *app) handleSpace() {
+	if a.route.page == pageDramas && a.activeDramaTab == 1 {
+		a.toggleDramaPlay()
+		return
+	}
+	if a.route.page == pageShortVideos && a.svPlaying {
+		return
+	}
+	a.pl.TogglePlay()
 }
 
 // topEdgePad is the room the edge over a page leaves below the strip, on
@@ -412,16 +536,17 @@ func edgeShown(el ui.Element, under bool) float32 {
 	return el.AnimateTo("shown", target, ui.Animation{Duration: 180 * time.Millisecond})
 }
 
-// pageTop is the strip over the top of a page, frosting what scrolls under
-// it as macOS 26's hard scroll edge does: it drags the window, and holds
-// the back button once there is a page to go back to.
+// pageTop is the title bar strip along the top of the window, frosting what scrolls under
+// it and providing the window dragging surface.
 func (a *app) pageTop(c *ui.Context) {
-	top, _ := a.insets(c)
+	top := topBar(c)
+	p := a.pal
 	edge := ui.Box(c.Key("top-edge")).Absolute().Top(0).Left(0).Right(0).Height(top).DragWindow().
-		Material(glass.ScrollEdge{Hard: true, Background: a.pal.bg})
+		Material(glass.ScrollEdge{Hard: true, Background: p.bg})
 	edge.Opacity(edgeShown(edge, a.underTop))
+
 	if len(a.history) > 0 || len(a.forward) > 0 {
-		ui.Row(c).Absolute().Top(0).Left(20).Height(topBar(c)).AlignItems(ui.Center).Children(func() {
+		ui.Row(c.Key("top-nav-btns")).Absolute().Top(0).Left(20).Height(top).AlignItems(ui.Center).Gap(4).Children(func() {
 			back := iconButton(c.Key("back"), iconBack, 18, a.pal.muted, "返回").Disabled(len(a.history) == 0)
 			if len(a.history) == 0 {
 				back.Opacity(0.35)
@@ -434,6 +559,74 @@ func (a *app) pageTop(c *ui.Context) {
 			}
 		})
 	}
+}
+
+// musicSearchBar is the Alger-style full-width adaptive search bar positioned below the title bar,
+// only displayed within the music world section.
+func (a *app) musicSearchBar(c *ui.Context) {
+	top := topBar(c)
+	p := a.pal
+	focused := c.Focused(a.topSearchBox)
+	searchBg := p.card
+	borderColor := p.hairline
+	if focused {
+		searchBg = p.bg
+		borderColor = p.accent
+	}
+
+	edge := ui.Box(c.Key("music-search-edge")).Absolute().Top(top).Left(0).Right(0).Height(musicBarHeight).
+		Material(glass.ScrollEdge{Hard: true, Background: p.bg})
+	edge.Opacity(edgeShown(edge, a.underTop))
+
+	ui.Row(c.Key("music-search-bar-row")).Absolute().Top(top + 6).Left(20).Right(20).Height(36).
+		AlignItems(ui.Center).Gap(10).Children(func() {
+			// Search Input Wrap with Grow(1) to adapt smoothly to full window width (Alger style)
+			searchWrap := ui.Row(c.Key("music-search-wrap")).Grow(1).Height(36).Padding(0, 14, 0, 14).
+				Gap(10).Radius(999).Background(searchBg).Border(1.5, borderColor).AlignItems(ui.Center)
+			if focused {
+				searchWrap.Shadow(0, 0, 0, 3, p.accent.Alpha(0.2))
+			}
+			searchWrap.Children(func() {
+				iconCol := p.muted
+				if focused {
+					iconCol = p.accent
+				}
+				searchIconBtn := iconButton(c.Key("music-search-icon"), iconSearch, 15, iconCol, "搜索").Size(22, 22)
+				if searchIconBtn.Clicked() {
+					val := strings.TrimSpace(a.query)
+					if val == "" && len(a.hotSearches) > 0 && a.hotSearches[0].SearchWord != "" {
+						val = a.hotSearches[0].SearchWord
+						a.query = val
+					}
+					a.search(val)
+				}
+
+				placeholder := "搜索音乐、歌手、歌单"
+				if len(a.hotSearches) > 0 && a.hotSearches[0].SearchWord != "" {
+					placeholder = a.hotSearches[0].SearchWord
+				}
+
+					in := ui.TextInputBase(c.Key("top-search-input"), &a.query).
+						Placeholder(placeholder).
+						FontSize(13.5).Label("搜索").Grow(1).MinWidth(0)
+				in.Bind(&a.topSearchBox)
+				if in.Submitted() {
+					val := strings.TrimSpace(a.query)
+					if val == "" && placeholder != "搜索音乐、歌手、歌单" {
+						val = placeholder
+						a.query = val
+					}
+					a.search(val)
+				}
+
+				if a.query != "" {
+					if iconButton(c.Key("music-search-clear"), iconX, 11, p.muted, "清空").Size(18, 18).Clicked() {
+						a.query = ""
+						a.search("")
+					}
+				}
+			})
+		})
 }
 
 func (a *app) content(c *ui.Context) {
@@ -465,11 +658,29 @@ func (a *app) content(c *ui.Context) {
 		a.userPage(c)
 		case pagePodcast:
 			a.podcastPage(c)
-		case pagePodcasts:
-			a.podcastsPage(c)
-		case pageLocal:
-			a.localPage(c)
-		}
+	case pagePodcasts:
+		a.podcastsPage(c)
+	case pageLocal:
+		a.localPage(c)
+	// 视界中心 (Video & Live)
+	case pageDramas:
+		a.dramasPage(c)
+	case pageShortVideos:
+		a.shortVideosPage(c)
+	case pageLive:
+		a.livePage(c)
+	case pageVoiceRoom:
+		a.voiceRoomPage(c)
+	case pageCinema:
+		a.cinemaPage(c)
+	// 边缘节点 (Cloud Node)
+	case pageNodeBoard:
+		a.nodeBoardPage(c)
+	case pageNodeStorage:
+		a.nodeStoragePage(c)
+	case pageNodeEarnings:
+		a.nodeEarningsPage(c)
+	}
 }
 
 // centered shows a message, with a retry button if retry is set: what a

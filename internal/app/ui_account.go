@@ -8,11 +8,22 @@ import (
 	"rsc.io/qr"
 
 	"netease-music-mygo/internal/netease"
+	"netease-music-mygo/internal/vcp"
 )
 
-// loginState is a QR code login under way.
+// loginState represents the unified login modal state (SMS phone code, QR scan, password).
 type loginState struct {
-	open     bool
+	open         bool
+	mode         int // 0: 手机验证码登录 (默认), 1: 扫码登录, 2: 密码/邮箱登录, 3: 注册
+	phone        string
+	codeText     string
+	password     string
+	countdown    int // 验证码倒计时秒数
+	agree        bool // 是否勾选同意服务条款与隐私政策
+	sendingCode  bool
+	submitting   bool
+	loginErrMsg  string
+
 	gen      int // counts logins, to stop the polls of closed ones
 	key      string
 	code     *qr.Code
@@ -24,12 +35,20 @@ type loginState struct {
 }
 
 // boot signs in with the session in the keychain, if any, then loads the
-// home page for whoever is listening.
+	// home page for whoever is listening.
 func (a *app) boot() {
 	a.localDirs = a.settings.LocalDirs
 	if len(a.localDirs) > 0 {
 		a.scanLocalDirs()
 	}
+
+	// 启动时异步与站长 API 握手同步分类、预设词与短剧/短视频资源库
+	go func() {
+		vcp.SyncTaxonomyFromStation("")
+		vcp.GetDramas()
+		vcp.GetShortVideos()
+	}()
+
 	a.homeLoading = true
 	go func() {
 		var prof *netease.Profile
@@ -201,12 +220,16 @@ func (a *app) loginDialog(c *ui.Context) {
 			}
 			ui.Column(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).Center().Gap(10).Children(func() {
 				switch {
-				case l.finished || l.status == netease.QRScanned:
-					if bmp := bitmap(a.art.get(netease.Sized(l.avatar, 160), false)); bmp != nil {
-						pic := ui.Box(c).Size(72, 72).Radius(36).Shadow(0, 6, 16, -4, ui.RGBA(0, 0, 0, 0.3))
-						in := artIn(pic, bmp)
-						pic.Children(func() { artImage(c, bmp, 36, in) })
-					}
+					case l.finished || l.status == netease.QRScanned:
+						scanAvatar := l.avatar
+						if scanAvatar == "" {
+							scanAvatar = "flashmusic://brand/logo"
+						}
+						if bmp := bitmap(a.art.get(netease.Sized(scanAvatar, 160), false)); bmp != nil {
+							pic := ui.Box(c).Size(72, 72).Radius(36).Shadow(0, 6, 16, -4, ui.RGBA(0, 0, 0, 0.3))
+							in := artIn(pic, bmp)
+							pic.Children(func() { artImage(c, bmp, 36, in) })
+						}
 					if l.scanner != "" {
 						ui.Text(c, l.scanner).FontSize(14).FontWeight(600).TextColor(ui.Hex("#1d1d1f"))
 					}

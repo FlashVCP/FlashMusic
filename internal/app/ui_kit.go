@@ -21,6 +21,7 @@ type palette struct {
 	hairline  ui.Color
 	hover     ui.Color
 	press     ui.Color
+	card      ui.Color // clean elevated card background
 	accent    ui.Color
 	onAccent  ui.Color
 	cardShade ui.Color
@@ -30,31 +31,33 @@ func paletteFor(t *ui.Theme) palette {
 	if t.Dark {
 		return palette{
 			dark:      true,
-			bg:        ui.Hex("#141416"),
-			sidebar:   ui.Hex("#1c1c1f"),
+			bg:        ui.Hex("#121214"),
+			sidebar:   ui.Hex("#18181c"),
 			text:      ui.Hex("#f5f5f7"),
-			muted:     ui.RGBA(235, 235, 245, 0.56),
-			faint:     ui.RGBA(235, 235, 245, 0.3),
-			hairline:  ui.RGBA(255, 255, 255, 0.07),
+			muted:     ui.RGBA(235, 235, 245, 0.58),
+			faint:     ui.RGBA(235, 235, 245, 0.32),
+			hairline:  ui.RGBA(255, 255, 255, 0.08),
 			hover:     ui.RGBA(255, 255, 255, 0.06),
 			press:     ui.RGBA(255, 255, 255, 0.1),
-			accent:    ui.Oklch(0.66, 0.2, 22),
+			card:      ui.Hex("#1a1a1e"),
+			accent:    ui.Hex("#22c55e"), // Alger Primary Emerald Green
 			onAccent:  ui.Hex("#ffffff"),
-			cardShade: ui.RGBA(0, 0, 0, 0.45),
+			cardShade: ui.RGBA(0, 0, 0, 0.5),
 		}
 	}
 	return palette{
 		bg:        ui.Hex("#ffffff"),
-		sidebar:   ui.Hex("#f4f4f6"),
-		text:      ui.Hex("#1d1d1f"),
-		muted:     ui.RGBA(60, 60, 67, 0.62),
-		faint:     ui.RGBA(60, 60, 67, 0.32),
-		hairline:  ui.RGBA(0, 0, 0, 0.07),
-		hover:     ui.RGBA(0, 0, 0, 0.04),
-		press:     ui.RGBA(0, 0, 0, 0.08),
-		accent:    ui.Oklch(0.6, 0.21, 24),
+		sidebar:   ui.Hex("#f8f9fa"),
+		text:      ui.Hex("#111827"),
+		muted:     ui.Hex("#6b7280"),
+		faint:     ui.Hex("#9ca3af"),
+		hairline:  ui.Hex("#e5e7eb"),
+		hover:     ui.Hex("#f3f4f6"),
+		press:     ui.Hex("#e5e7eb"),
+		card:      ui.Hex("#f9fafb"),
+		accent:    ui.Hex("#22c55e"), // Alger Primary Emerald Green
 		onAccent:  ui.Hex("#ffffff"),
-		cardShade: ui.RGBA(0, 0, 0, 0.16),
+		cardShade: ui.RGBA(0, 0, 0, 0.08),
 	}
 }
 
@@ -151,6 +154,42 @@ func (a *app) cover(c *ui.Context, url string, px int, size, radius float32) ui.
 			ui.Icon(c, iconNote).Size(size*0.3, size*0.3).TextColor(p.faint).Opacity(1 - in)
 		}
 		artImage(c, bmp, radius, in)
+	})
+	return box
+}
+
+// coverPoster displays a rectangular vertical video/drama poster with proper aspect ratio.
+func (a *app) coverPoster(c *ui.Context, url string, w, h, radius float32) ui.Element {
+	p := a.pal
+	box := ui.Box(c).Size(w, h).Radius(radius).Center().Clip()
+	bmp := bitmap(a.art.get(url, false))
+	in := artIn(box, bmp)
+	if in < 1 {
+		box.Background(p.hover)
+	}
+	box.Children(func() {
+		if in < 1 {
+			ui.Icon(c, iconClapperboard).Size(w*0.28, w*0.28).TextColor(p.faint).Opacity(1 - in)
+		}
+		artImage(c, bmp, radius, in)
+	})
+	return box
+}
+
+// coverBackdrop displays a full-bleed backdrop covering its entire parent with Cover fit.
+func (a *app) coverBackdrop(c *ui.Context, url string) ui.Element {
+	p := a.pal
+	box := ui.Box(c).Absolute().Fill().Center().Clip()
+	bmp := bitmap(a.art.get(url, false))
+	in := artIn(box, bmp)
+	if in < 1 {
+		box.Background(p.hover)
+	}
+	box.Children(func() {
+		if in < 1 {
+			ui.Icon(c, iconClapperboard).Size(64, 64).TextColor(p.faint).Opacity(1 - in)
+		}
+		artImage(c, bmp, 0, in)
 	})
 	return box
 }

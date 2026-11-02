@@ -418,16 +418,16 @@ func (a *app) podcastsPage(c *ui.Context) {
 	ui.Scroll(c.Key("podcasts")).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad, bottom+48, pagePad).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
-		a.heading(c, "播客", "")
-		cols := a.columns(c, 150)
-		if !t.hotPage.loaded {
-			s := a.pageShimmer(c)
-			a.section(c, "精选播客").Margin(0, 0, 14, 0)
-			a.playlistCardsSkeleton(c, s, cols, 150, true)
-			a.section(c, "热门播客")
-			a.playlistCardsSkeleton(c, s, cols*2, 150, true)
-			return
-		}
+			a.heading(c, "播客", "")
+			cols := a.columns(c, 210)
+			if !t.hotPage.loaded {
+				s := a.pageShimmer(c)
+				a.section(c, "精选播客").Margin(0, 0, 14, 0)
+				a.playlistCardsSkeleton(c, s, cols, 210, true)
+				a.section(c, "热门播客")
+				a.playlistCardsSkeleton(c, s, cols*2, 210, true)
+				return
+			}
 		// The first list starts right under the heading.
 		first := true
 		list := func(title string, pods []netease.Podcast) {

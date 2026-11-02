@@ -2,12 +2,14 @@ package app
 
 import (
 	"bytes"
+	_ "embed"
 	"encoding/binary"
 	"image"
 	"image/color"
 	_ "image/jpeg"
 	_ "image/png"
 	"math"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -18,7 +20,14 @@ import (
 
 	"netease-music-mygo/internal/netease"
 	"netease-music-mygo/internal/source"
+	"netease-music-mygo/internal/vcp"
 )
+
+//go:embed brand/logo.png
+var brandLogoPNG []byte
+
+//go:embed brand/icon.png
+var brandIconPNG []byte
 
 // artwork is a cover, decoded and ready to draw, with what the player
 // derives from it: its color, and a blurred copy to fill a backdrop.
@@ -126,18 +135,55 @@ const artRelease = 2 * time.Second
 // loadArt fetches the cover at url, as a bitmap to draw and an image to
 // measure.
 func loadArt(url string) (*ui.Bitmap, image.Image, error) {
+	if strings.HasPrefix(url, "flashmusic://brand/icon") {
+		return decodeArt(brandIconPNG)
+	}
+	if strings.HasPrefix(url, "flashmusic://brand/logo") {
+		return decodeArt(brandLogoPNG)
+	}
 	if strings.HasPrefix(url, "flashmusic://cover/") {
 		idStr := strings.TrimPrefix(url, "flashmusic://cover/")
+		if idx := strings.Index(idStr, "?"); idx != -1 {
+			idStr = idStr[:idx]
+		}
 		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
 			if data := source.GetCoverData(id); len(data) > 0 {
 				return decodeArt(data)
 			}
 		}
 	}
+	if strings.HasPrefix(url, "flashmusic://drama-cover/") {
+		idStr := strings.TrimPrefix(url, "flashmusic://drama-cover/")
+		if idx := strings.Index(idStr, "?"); idx != -1 {
+			idStr = idStr[:idx]
+		}
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			if data, err := vcp.GetDramaCoverBytes(id); err == nil && len(data) > 0 {
+				return decodeArt(data)
+			}
+		}
+	}
+	if strings.HasPrefix(url, "file://") {
+		p := strings.TrimPrefix(url, "file://")
+		if data, err := os.ReadFile(p); err == nil && len(data) > 0 {
+			return decodeArt(data)
+		}
+	}
+
+	// Check persistent L2 disk cache for remote URLs (zero network latency on restart)
+	if data, ok := readCoverDiskCache(url); ok {
+		bmp, img, err := decodeArt(data)
+		if err == nil {
+			go revalidateCoverBackground(url)
+			return bmp, img, nil
+		}
+	}
+
 	b, err := netease.Fetch(url)
 	if err != nil {
 		return nil, nil, err
 	}
+	writeCoverDiskCache(url, b)
 	return decodeArt(b)
 }
 
@@ -154,6 +200,12 @@ func decodeArt(b []byte) (*ui.Bitmap, image.Image, error) {
 }
 
 func fetchImage(url string) (image.Image, error) {
+	if strings.HasPrefix(url, "flashmusic://brand/icon") {
+		return decodeImage(brandIconPNG)
+	}
+	if strings.HasPrefix(url, "flashmusic://brand/logo") {
+		return decodeImage(brandLogoPNG)
+	}
 	if strings.HasPrefix(url, "flashmusic://cover/") {
 		idStr := strings.TrimPrefix(url, "flashmusic://cover/")
 		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
@@ -162,10 +214,35 @@ func fetchImage(url string) (image.Image, error) {
 			}
 		}
 	}
+	if strings.HasPrefix(url, "flashmusic://drama-cover/") {
+		idStr := strings.TrimPrefix(url, "flashmusic://drama-cover/")
+		if idx := strings.Index(idStr, "?"); idx != -1 {
+			idStr = idStr[:idx]
+		}
+		if id, err := strconv.ParseInt(idStr, 10, 64); err == nil {
+			if data, err := vcp.GetDramaCoverBytes(id); err == nil && len(data) > 0 {
+				return decodeImage(data)
+			}
+		}
+	}
+	if strings.HasPrefix(url, "file://") {
+		p := strings.TrimPrefix(url, "file://")
+		if data, err := os.ReadFile(p); err == nil && len(data) > 0 {
+			return decodeImage(data)
+		}
+	}
+
+	if data, ok := readCoverDiskCache(url); ok {
+		if img, err := decodeImage(data); err == nil {
+			return img, nil
+		}
+	}
+
 	b, err := netease.Fetch(url)
 	if err != nil {
 		return nil, err
 	}
+	writeCoverDiskCache(url, b)
 	return decodeImage(b)
 }
 

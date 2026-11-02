@@ -56,7 +56,35 @@ func TestArtCacheKeepsCoversWhileIdle(t *testing.T) {
 	c.art["shown"] = &artwork{used: now}
 	c.get("shown", false)
 	now = now.Add(10 * time.Minute)
-	if c.get("shown", false) == nil {
-		t.Error("dropped the covers showing after 10 minutes idle")
+		if c.get("shown", false) == nil {
+			t.Error("dropped the covers showing after 10 minutes idle")
+		}
 	}
+
+func TestBrandLogoDecode(t *testing.T) {
+	if len(brandLogoPNG) == 0 {
+		t.Fatal("expected brandLogoPNG to be embedded")
+	}
+	bmp, img, err := loadArt("flashmusic://brand/logo")
+	if err != nil {
+		t.Fatalf("loadArt(flashmusic://brand/logo) failed: %v", err)
+	}
+	if bmp == nil || img == nil {
+		t.Fatal("expected non-nil bitmap and image for brand logo")
+	}
+	t.Logf("Brand logo decoded successfully: %v", img.Bounds())
+}
+
+func TestBrandIconDecode(t *testing.T) {
+	if len(brandIconPNG) == 0 {
+		t.Fatal("expected brandIconPNG to be embedded")
+	}
+	bmp, img, err := loadArt("flashmusic://brand/icon")
+	if err != nil {
+		t.Fatalf("loadArt(flashmusic://brand/icon) failed: %v", err)
+	}
+	if bmp == nil || img == nil {
+		t.Fatal("expected non-nil bitmap and image for brand icon")
+	}
+	t.Logf("Brand icon decoded successfully: %v", img.Bounds())
 }

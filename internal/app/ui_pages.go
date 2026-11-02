@@ -13,11 +13,33 @@ import (
 
 const pagePad = 40
 
-// columns returns how many cards of at least min DIPs fit across the page.
-func (a *app) columns(c *ui.Context, min float32) int {
+// columns returns how many cards of at least minWidth DIPs fit across the page.
+// Standard desktop layouts follow the Tencent QQ Music 6-column specification (minWidth >= 160 capped at 6),
+// ensuring generous 220-250px cover dimensions without over-stretching or shrinking.
+func (a *app) columns(c *ui.Context, minWidth float32) int {
 	w, _ := c.Size()
 	inner := w - sidebarWidth - 2*pagePad
-	return max(2, int((inner+20)/(min+20)))
+	cols := int((inner + 20) / (minWidth + 20))
+	if minWidth >= 160 {
+		return max(2, min(6, cols))
+	}
+	return max(2, min(8, cols))
+}
+
+func filterPlaylists(list []netease.Playlist, cat string) []netease.Playlist {
+	if cat == "" || cat == "全部" || cat == "为你推荐" || cat == "官方精选" {
+		return list
+	}
+	var out []netease.Playlist
+	for _, pl := range list {
+		if strings.Contains(pl.Name, cat) || strings.Contains(pl.Description, cat) {
+			out = append(out, pl)
+		}
+	}
+	if len(out) == 0 {
+		return list
+	}
+	return out
 }
 
 func (a *app) heading(c *ui.Context, title, sub string) {
@@ -33,44 +55,149 @@ func (a *app) section(c *ui.Context, title string) ui.Element {
 	return ui.Text(c, title).FontSize(19).FontWeight(700).LetterSpacing(-0.3).Margin(34, 0, 14, 0)
 }
 
-func (a *app) homeHeading(c *ui.Context, now time.Time) {
+// sectionHeader renders a Tencent QQ Music style section header with title, quick-filter category pills, and "更多 >" link.
+func (a *app) sectionHeader(c *ui.Context, title string, pills []string, activePill string, onSelect func(string), onMore func()) {
 	p := a.pal
-	ui.Row(c).AlignItems(ui.End).Margin(0, 0, 20, 0).Children(func() {
-		// Left: Date & Greeting
-		ui.Column(c).Grow(1).Gap(4).Children(func() {
+	ui.Row(c.Key("sec-hdr-" + title)).Margin(34, 0, 16, 0).AlignItems(ui.Center).Children(func() {
+		// Section Title
+		ui.Text(c, title).FontSize(20).FontWeight(700).TextColor(p.text).LetterSpacing(-0.4)
+
+		// Category Pills
+		if len(pills) > 0 {
+			ui.Row(c).Margin(0, 0, 0, 16).Gap(8).AlignItems(ui.Center).Children(func() {
+				for _, pill := range pills {
+					cat := pill
+					selected := cat == activePill || (activePill == "" && (cat == "为你推荐" || cat == "全部"))
+					btn := ui.ButtonBase(c.Key("pill-" + title + "-" + cat)).Height(28).PaddingX(12).Radius(999).
+						AlignItems(ui.Center).FocusRing(false).Label(cat)
+					if selected {
+						btn.Background(p.accent).TextColor(p.onAccent)
+					} else {
+						btn.Background(p.hover).TextColor(p.muted)
+						if btn.Hovered() {
+							btn.Background(p.press).TextColor(p.text)
+						}
+					}
+					btn.Children(func() {
+						ui.Text(c, cat).FontSize(12).FontWeight(500)
+					})
+					if btn.Clicked() && onSelect != nil {
+						onSelect(cat)
+					}
+				}
+			})
+		}
+
+		ui.Box(c).Grow(1)
+
+		// Right "更多 >" Link
+		if onMore != nil {
+			moreBtn := ui.ButtonBase(c.Key("more-" + title)).Height(26).PaddingX(8).Radius(6).
+				AlignItems(ui.Center).FocusRing(false).Label("更多")
+			if moreBtn.Hovered() {
+				moreBtn.Background(p.hover)
+			}
+			moreBtn.Children(func() {
+				ui.Row(c).AlignItems(ui.Center).Gap(2).Children(func() {
+					ui.Text(c, "更多").FontSize(12).TextColor(p.muted)
+					ui.Icon(c, iconForward).Size(12, 12).TextColor(p.muted)
+				})
+			})
+			if moreBtn.Clicked() {
+				onMore()
+			}
+		}
+	})
+}
+
+// homeSubNav provides Tencent-style category tabs at the top of the music discovery page.
+func (a *app) homeSubNav(c *ui.Context, now time.Time) {
+	p := a.pal
+	ui.Row(c.Key("home-sub-nav")).Height(40).Margin(0, 0, 16, 0).AlignItems(ui.Center).Children(func() {
+		tabs := []struct {
+			name  string
+			route route
+		}{
+			{"精选", route{page: pageHome}},
+			{"排行榜", route{page: pageCharts}},
+			{"电台主播", route{page: pagePodcasts}},
+			{"私人 FM", route{page: pageFM}},
+			{"本地音乐", route{page: pageLocal}},
+		}
+
+		ui.Row(c).Gap(20).AlignItems(ui.Center).Children(func() {
+			for _, t := range tabs {
+				tab := t
+				active := a.route.page == tab.route.page
+				btn := ui.ButtonBase(c.Key("subnav-" + tab.name)).PaddingY(4).PaddingX(2).FocusRing(false).Label(tab.name)
+				btn.Children(func() {
+					ui.Column(c).AlignItems(ui.Center).Gap(4).Children(func() {
+						col := p.muted
+						weight := 500
+						if active {
+							col = p.text
+							weight = 700
+						} else if btn.Hovered() {
+							col = p.text
+						}
+						ui.Text(c, tab.name).FontSize(16).FontWeight(weight).TextColor(col)
+						if active {
+							ui.Box(c).Height(3).Width(20).Radius(2).Background(p.accent)
+						} else {
+							ui.Box(c).Height(3).Width(20)
+						}
+					})
+				})
+				if btn.Clicked() && !active {
+					a.open(tab.route)
+				}
+			}
+		})
+
+		ui.Box(c).Grow(1)
+
+		// Right: Date & Account
+		ui.Row(c).AlignItems(ui.Center).Gap(12).Children(func() {
 			ui.Text(c, fmt.Sprintf("%d月%d日 %s", now.Month(), now.Day(), weekday(now))).
-				FontSize(12).FontWeight(600).TextColor(p.muted).LetterSpacing(0.4)
+				FontSize(12).FontWeight(500).TextColor(p.muted)
+
+			if a.profile == nil {
+				loginBtn := pillButton(c.Key("home-login-btn"), iconUser, "登录网易云", p.hover, p.text).
+					Border(0.5, p.hairline)
+				if loginBtn.Clicked() {
+					a.openLogin()
+				}
+			} else {
+				prof := a.profile
+				chip := ui.ButtonBase(c.Key("home-user-chip")).Height(30).PaddingX(8).Gap(6).Radius(999).
+					Background(p.hover).Border(0.5, p.hairline).AlignItems(ui.Center).FocusRing(false).Label(prof.Nickname)
+				if chip.Hovered() || a.accountOpen {
+					chip.Background(p.press)
+				}
+				chip.Children(func() {
+					a.avatar(c, prof.AvatarURL, 20, p.press)
+					ui.Text(c, prof.Nickname).FontSize(12).FontWeight(600).TextColor(p.text)
+					ui.Icon(c, iconDown).Size(10, 10).TextColor(p.muted)
+				})
+				if chip.Clicked() {
+					a.accountOpen = !a.accountOpen
+				}
+				a.accountMenu(c, chip)
+			}
+		})
+	})
+}
+
+func (a *app) homeHeading(c *ui.Context, now time.Time) {
+	ui.Row(c).AlignItems(ui.End).Margin(0, 0, 16, 0).Children(func() {
+		// Left: Greeting
+		ui.Column(c).Grow(1).Gap(4).Children(func() {
 			hello := greeting(now)
 			if a.profile != nil {
 				hello += "，" + a.profile.Nickname
 			}
-			ui.Text(c, hello).FontSize(30).FontWeight(700).LetterSpacing(-0.6)
+			ui.Text(c, hello).FontSize(26).FontWeight(700).LetterSpacing(-0.5)
 		})
-
-		// Right: NetEase Account Entrance
-		if a.profile == nil {
-			loginBtn := pillButton(c.Key("home-login-btn"), iconUser, "登录网易云账号", p.hover, p.text).
-				Border(0.5, p.hairline)
-			if loginBtn.Clicked() {
-				a.openLogin()
-			}
-		} else {
-			prof := a.profile
-			chip := ui.ButtonBase(c.Key("home-user-chip")).Height(34).PaddingX(10).Gap(8).Radius(999).
-				Background(p.hover).Border(0.5, p.hairline).AlignItems(ui.Center).FocusRing(false).Label(prof.Nickname)
-			if chip.Hovered() || a.accountOpen {
-				chip.Background(p.press)
-			}
-			chip.Children(func() {
-				a.avatar(c, prof.AvatarURL, 22, p.press)
-				ui.Text(c, prof.Nickname).FontSize(13).FontWeight(600).TextColor(p.text)
-				ui.Icon(c, iconDown).Size(11, 11).TextColor(p.muted)
-			})
-			if chip.Clicked() {
-				a.accountOpen = !a.accountOpen
-			}
-			a.accountMenu(c, chip)
-		}
 	})
 }
 
@@ -85,35 +212,60 @@ func (a *app) homePage(c *ui.Context) {
 	ui.Scroll(c.Key("home")).TrackScroll(&a.pageScroll).Grow(1).Padding(top+pageGap, pagePad, bottom+48, pagePad).ScrollbarInsets(top, 0, bottom, 0).Children(func() {
 		a.startMark(c)
 		defer a.endMark(c)
-		a.homeHeading(c, now)
+		a.homeSubNav(c, now)
 		if loading {
 			a.homeSkeleton(c, a.pageShimmer(c))
 			return
 		}
 		a.dailyCard(c, now)
 
+		recCols := a.columns(c, 210)
+
+		// 1. 今日为你推荐
 		if len(a.recPlaylists) > 0 {
-			a.section(c, "今日为你推荐")
-			ui.Grid(c).Columns(a.columns(c, 168)).GapX(20).GapY(28).Children(func() {
-				for i := range a.recPlaylists[:min(len(a.recPlaylists), a.columns(c, 168)*2)] {
-					a.playlistCard(c.Key(a.recPlaylists[i].ID), &a.recPlaylists[i])
+			recPills := []string{"为你推荐", "官方精选", "流行", "轻音乐", "经典华语", "摇滚电音"}
+			a.sectionHeader(c, "今日为你推荐", recPills, a.recCategory, func(cat string) {
+				a.recCategory = cat
+			}, func() {
+				a.open(route{page: pagePlaylist, id: a.recPlaylists[0].ID})
+			})
+
+			displayRec := filterPlaylists(a.recPlaylists, a.recCategory)
+			maxCount := min(len(displayRec), recCols*2)
+			ui.Grid(c).Columns(recCols).GapX(20).GapY(28).Children(func() {
+				for i := range displayRec[:maxCount] {
+					a.playlistCard(c.Key(displayRec[i].ID), &displayRec[i])
 				}
 			})
 		}
 
-		a.section(c, "官方榜单")
+		// 2. 官方榜单
+		a.sectionHeader(c, "官方权威榜单", nil, "", nil, func() {
+			a.open(route{page: pageCharts})
+		})
 		official := a.charts[:min(4, len(a.charts))]
-		cols := min(4, max(2, a.columns(c, 260)))
-		ui.Grid(c).Columns(cols).Gap(20).Children(func() {
+		chartCols := min(4, max(2, a.columns(c, 260)))
+		ui.Grid(c).Columns(chartCols).Gap(20).Children(func() {
 			for i := range official {
 				a.chartCard(c.Key(official[i].ID), &official[i])
 			}
 		})
 
-		a.section(c, "推荐歌单")
-		ui.Grid(c).Columns(a.columns(c, 168)).GapX(20).GapY(28).Children(func() {
-			for i := range a.featured {
-				a.playlistCard(c.Key(a.featured[i].ID), &a.featured[i])
+		// 3. 推荐歌单
+		featPills := []string{"全部", "华语", "流行", "欧美", "二次元", "民谣", "电子"}
+		a.sectionHeader(c, "推荐歌单", featPills, a.featCategory, func(cat string) {
+			a.featCategory = cat
+		}, func() {
+			if len(a.featured) > 0 {
+				a.open(route{page: pagePlaylist, id: a.featured[0].ID})
+			}
+		})
+
+		displayFeat := filterPlaylists(a.featured, a.featCategory)
+		maxFeat := min(len(displayFeat), recCols*3)
+		ui.Grid(c).Columns(recCols).GapX(20).GapY(28).Children(func() {
+			for i := range displayFeat[:maxFeat] {
+				a.playlistCard(c.Key(displayFeat[i].ID), &displayFeat[i])
 			}
 		})
 	})
@@ -134,29 +286,29 @@ func (a *app) chartsPage(c *ui.Context) {
 		a.startMark(c)
 		defer a.endMark(c)
 		a.heading(c, "排行榜", "每日更新")
-		if loading {
-			s := a.pageShimmer(c)
-			a.chartCardsSkeleton(c, s)
-			a.section(c, "全部榜单")
-			a.playlistCardsSkeleton(c, s, a.columns(c, 150)*2, 150, true)
-			return
-		}
-		official := a.charts[:min(4, len(a.charts))]
-		cols := min(4, max(2, a.columns(c, 260)))
-		ui.Grid(c).Columns(cols).Gap(20).Children(func() {
-			for i := range official {
-				a.chartCard(c.Key(official[i].ID), &official[i])
+			if loading {
+				s := a.pageShimmer(c)
+				a.chartCardsSkeleton(c, s)
+				a.section(c, "全部榜单")
+				a.playlistCardsSkeleton(c, s, a.columns(c, 210)*2, 210, true)
+				return
 			}
-		})
-		if len(a.charts) > 4 {
-			a.section(c, "全部榜单")
-			rest := a.charts[4:]
-			ui.Grid(c).Columns(a.columns(c, 150)).GapX(20).GapY(28).Children(func() {
-				for i := range rest {
-					a.playlistCard(c.Key(rest[i].ID), &rest[i])
+			official := a.charts[:min(4, len(a.charts))]
+			cols := min(4, max(2, a.columns(c, 260)))
+			ui.Grid(c).Columns(cols).Gap(20).Children(func() {
+				for i := range official {
+					a.chartCard(c.Key(official[i].ID), &official[i])
 				}
 			})
-		}
+			if len(a.charts) > 4 {
+				a.section(c, "全部榜单")
+				rest := a.charts[4:]
+				ui.Grid(c).Columns(a.columns(c, 210)).GapX(20).GapY(28).Children(func() {
+					for i := range rest {
+						a.playlistCard(c.Key(rest[i].ID), &rest[i])
+					}
+				})
+			}
 	})
 }
 
@@ -198,10 +350,14 @@ func (a *app) coverCard(c *ui.Context, name, cover string, playCount float64, su
 			}
 			a.coverPlayButton(c, hovered, play)
 		})
-		ui.Text(c, name).FontSize(13).FontWeight(500).MaxLines(2).LineHeight(1.35)
-		if sub != "" {
-			ui.Text(c, sub).FontSize(12).TextColor(p.muted).SingleLine().Margin(-6, 0, 0, 0)
-		}
+			titleCol := p.text
+			if hovered {
+				titleCol = p.accent
+			}
+			ui.Text(c, name).FontSize(13.5).FontWeight(500).TextColor(titleCol).MaxLines(2).LineHeight(1.35)
+			if sub != "" {
+				ui.Text(c, sub).FontSize(12).TextColor(p.muted).SingleLine().Margin(-6, 0, 0, 0)
+			}
 	})
 	return card.Clicked()
 }
@@ -392,10 +548,10 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 			footer[i-len(tracks)-1](c)
 			return
 		}
-		i--
-		tr := &tracks[i]
-		playing := cur != nil && cur.ID == tr.ID
-			row := ui.ButtonBase(c.Key(tr.ID)).Height(54).PaddingX(12).Gap(14).Radius(10).AlignItems(ui.Center).FocusRing(false).Label(tr.Name)
+			i--
+			tr := &tracks[i]
+			playing := cur != nil && cur.ID == tr.ID
+			row := ui.ButtonBase(c.Key(tr.ID)).Height(56).Padding(0, 12, 0, 12).Gap(14).Radius(12).AlignItems(ui.Center).FocusRing(false).Label(tr.Name)
 			if row.RightClicked() {
 				a.songMenuTrack = tr
 				a.songMenuOpen = true
@@ -418,25 +574,29 @@ func (a *app) trackRows(c *ui.Context, tracks []netease.Track, covers bool, head
 					case playing:
 						a.nowPlayingBars(c)
 					case hovered && tr.Playable():
-						ui.Icon(c, iconPlay).Size(13, 13).TextColor(p.text)
+						ui.Icon(c, iconPlay).Size(14, 14).TextColor(p.accent)
 					default:
 						ui.Textf(c, "%d", i+1).FontSize(13).FontFeatures("tnum").TextColor(p.faint)
 					}
 				})
 				if covers {
-					a.cover(c, tr.Album.PicURL, 96, 38, 6)
+					a.cover(c, tr.Album.PicURL, 120, 44, 10)
 				}
 				ui.Column(c).Grow(3).Basis(0).MinWidth(0).Gap(3).Children(func() {
 					name := p.text
 					if playing {
 						name = p.accent
 					}
-					spans := []ui.Span{{Text: tr.Name, Weight: 500, Color: name}}
+					spans := []ui.Span{{Text: tr.Name, Weight: 600, Color: name}}
 					if len(tr.Alias) > 0 {
 						spans = append(spans, ui.Span{Text: "（" + tr.Alias[0] + "）", Color: p.faint})
 					}
-					ui.RichText(c, spans...).FontSize(14).SingleLine()
+					ui.RichText(c, spans...).FontSize(14.5).SingleLine()
 					ui.Row(c).Gap(6).AlignItems(ui.Center).Children(func() {
+						// Gold SQ 320K audio quality badge (Alger / Hi-Res style)
+						ui.Box(c).Padding(1, 4, 1, 4).Radius(3).Background(ui.RGB(212, 168, 83).Alpha(0.15)).Border(0.8, ui.RGB(212, 168, 83).Alpha(0.6)).Children(func() {
+							ui.Text(c, "SQ 320K").FontSize(8.5).FontWeight(700).TextColor(ui.RGB(226, 184, 102))
+						})
 						if !tr.Playable() {
 							ui.Text(c, "VIP").FontSize(9).FontWeight(800).TextColor(p.accent).Padding(0, 4).Radius(3).Border(1, p.accent.Alpha(0.6))
 						}

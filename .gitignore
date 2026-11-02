@@ -1,5 +1,13 @@
 /build/
+/dist/
+/release/
 /.mygo/
+/.keys/
+*.key
 mygo_windows_*.syso
 /netease-music-mygo
 /node_modules/
+/*.exe
+.staging-*
+*.log
+

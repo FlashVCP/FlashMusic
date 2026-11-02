@@ -82,7 +82,7 @@ func (a *app) applyTray() {
 		if runtime.GOOS == "darwin" {
 			icon, template = trayTemplate, true
 		}
-		t, err := mygo.NewTray(mygo.TrayOptions{ID: "cloudmusic", Icon: icon, IconIsTemplate: template, ToolTip: mygo.App.Name(), Menu: a.trayMenu()})
+			t, err := mygo.NewTray(mygo.TrayOptions{ID: "flashmusic", Icon: icon, IconIsTemplate: template, ToolTip: "FlashMusic 闪音", Menu: a.trayMenu()})
 		if err != nil {
 			log.Println("tray:", err)
 			return

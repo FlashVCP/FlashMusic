@@ -3,7 +3,21 @@
   "identifier": "io.flashvcp.flashmusic",
   "slug": "flashmusic",
   "version": "0.1.0",
-  "out": "build",
+  "publisher": "FlashMusic Community",
+  "copyright": "Copyright © 2026 FlashMusic Community",
+  "icon": "resources/icon.png",
+  "out": "release",
+  "updates": {
+    "publicKey": "8OVNh8EU+b7td0FHO9a3cgM0EtLlNWWLVY5LLOn4tbQ=",
+    "privateKey": ".keys/mygo-update.key",
+    "github": "FlashVCP/FlashMusic",
+    "tagPrefix": "v",
+    "changelog": "CHANGELOG.md",
+    "deltas": 3
+  },
+  "windows": {
+    "displayName": "FlashMusic 闪音"
+  },
   "macos": {
     "icon": "icon/AppIcon.icon",
     "minimumSystemVersion": "13.0"

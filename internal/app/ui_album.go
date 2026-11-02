@@ -97,7 +97,7 @@ func (a *app) albumHeader(c *ui.Context, al *netease.AlbumProfile) {
 
 // albumGrid shows albums as cards, each opening its page.
 func (a *app) albumGrid(c *ui.Context, albums []netease.AlbumProfile) {
-	ui.Grid(c).Columns(a.columns(c, 156)).GapX(20).GapY(28).Children(func() {
+	ui.Grid(c).Columns(a.columns(c, 210)).GapX(20).GapY(28).Children(func() {
 		for i := range albums {
 			a.albumCard(c.Key(albums[i].ID), &albums[i])
 		}

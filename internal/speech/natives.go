@@ -22,21 +22,16 @@ var libFiles = map[string][]nativeFile{
 		{name: "libsherpa-onnx-c-api.so", asset: "linux-amd64-libsherpa-onnx-c-api.so.gz", size: 4057064, gzSize: 1566580, sha256: "e8ea0e45a1677c489d22eecb3a9420dbd7cee1b00e611ef623d0a558abb29226", gzSHA256: "9272b64f72b9223b028b23337370b0f76e0534b67829c000c75e635848a502cc"},
 		{name: "libonnxruntime.so", asset: "linux-amd64-libonnxruntime.so.gz", size: 27026609, gzSize: 8695492, sha256: "4b3607aebd1784b26b6f9b20e4bd974c7ab8287043e4d095cb7d2cb40b5e566e", gzSHA256: "36be29a777adaf2d6f8a994742f1df07e48de0f62ace4b856c3f597387e1d228"},
 	},
-	"linux-arm64": {
-		{name: "libsherpa-onnx-c-api.so", asset: "linux-arm64-libsherpa-onnx-c-api.so.gz", size: 4443416, gzSize: 1794845, sha256: "c97ad6215d1406e4ea1e813057da64cdd59ed038bd84438ac168495205218c1c", gzSHA256: "023afe4b3e9c2d458009336709f30e82b64a63780dc257e13a069bb1a24b50c4"},
-		{name: "libonnxruntime.so", asset: "linux-arm64-libonnxruntime.so.gz", size: 34606912, gzSize: 11703085, sha256: "cfc800d4438f15e8d9017521326776ca7117d8783cb847ccccc2fc61ac4d540f", gzSHA256: "c9738a3206f6405af0124d64c4648fde909e541178bc4766d5c91234893c11ac"},
-	},
-	"windows-amd64": {
-		{name: "sherpa-onnx-c-api.dll", asset: "windows-amd64-sherpa-onnx-c-api.dll.gz", size: 3667968, gzSize: 1529768, sha256: "ee2af9f49b8fc5dae135ad20c0b955cbab90d17b79cc1ad0db91e03b24962f68", gzSHA256: "52189e72a496651647645f46372ff1c3080e0484ef55b3f167f2d75a8886ff98"},
-		{name: "onnxruntime.dll", asset: "windows-amd64-onnxruntime.dll.gz", size: 17799168, gzSize: 6521680, sha256: "7f66f939a881baf4f46a2216496798edf4a1429878b646d12674aa62f27d8a25", gzSHA256: "972de868a95713e353c1710727b06f76f2721b4910f9d6ffdf1d093009bd8681"},
-		{name: "onnxruntime_providers_shared.dll", asset: "windows-amd64-onnxruntime_providers_shared.dll.gz", size: 104960, gzSize: 53944, sha256: "551d0e1fe4c227d8542314ba718d52f4379e0c7bfe729a37c59833a884e27b4d", gzSHA256: "7da8c7152b8205e6c77d6cdbbbd91a93ae6bb1c08f15d3c58cff6b5fe40b5fc8"},
-	},
-	"windows-arm64": {
-		{name: "sherpa-onnx-c-api.dll", asset: "windows-arm64-sherpa-onnx-c-api.dll.gz", size: 3884032, gzSize: 1550269, sha256: "4bb5212e66d712012b38bd51495480b71652c0b8effc0e61a6e53b83fd2c2a09", gzSHA256: "a81fda4d73fda9fe69a2784a67d55b18e78bdd10e6b2002e95b75fae776be94e"},
-		{name: "onnxruntime.dll", asset: "windows-arm64-onnxruntime.dll.gz", size: 17635328, gzSize: 6239235, sha256: "968d081836cad9af537105f59e34d4997bca2ce6d78ff39d3e47660620e8a642", gzSHA256: "7b346450e95836788c599b9c8b08c854c4b6cf67b1ee2068043ae0a57a0708c3"},
-		{name: "onnxruntime_providers_shared.dll", asset: "windows-arm64-onnxruntime_providers_shared.dll.gz", size: 104448, gzSize: 45964, sha256: "05fb0cc694b0671db544e77c55c3736d13be850b8b4045145e982e072e6f938f", gzSHA256: "82dd6c8aad5bf4ff326e6d1d58da75ed792227dac92984241e73d605d8bfa458"},
-	},
-}
+		"linux-arm64": {
+			{name: "libsherpa-onnx-c-api.so", asset: "linux-arm64-libsherpa-onnx-c-api.so.gz", size: 4443416, gzSize: 1794845, sha256: "c97ad6215d1406e4ea1e813057da64cdd59ed038bd84438ac168495205218c1c", gzSHA256: "023afe4b3e9c2d458009336709f30e82b64a63780dc257e13a069bb1a24b50c4"},
+			{name: "libonnxruntime.so", asset: "linux-arm64-libonnxruntime.so.gz", size: 34606912, gzSize: 11703085, sha256: "cfc800d4438f15e8d9017521326776ca7117d8783cb847ccccc2fc61ac4d540f", gzSHA256: "c9738a3206f6405af0124d64c4648fde909e541178bc4766d5c91234893c11ac"},
+		},
+		"windows-amd64": {
+			{name: "sherpa-onnx-c-api.dll", asset: "", size: 3667968, gzSize: 0, sha256: "ee2af9f49b8fc5dae135ad20c0b955cbab90d17b79cc1ad0db91e03b24962f68", gzSHA256: ""},
+			{name: "onnxruntime.dll", asset: "", size: 17799168, gzSize: 0, sha256: "7f66f939a881baf4f46a2216496798edf4a1429878b646d12674aa62f27d8a25", gzSHA256: ""},
+			{name: "onnxruntime_providers_shared.dll", asset: "", size: 104960, gzSize: 0, sha256: "551d0e1fe4c227d8542314ba718d52f4379e0c7bfe729a37c59833a884e27b4d", gzSHA256: ""},
+		},
+	}
 
 // vadFile is Silero's voice activity detector.
 var vadFile = nativeFile{name: "silero_vad.onnx", asset: "silero_vad.onnx.gz", size: 643854, gzSize: 518509, sha256: "9e2449e1087496d8d4caba907f23e0bd3f78d91fa552479bb9c23ac09cbb1fd6", gzSHA256: "8c362e72ac15cedfaf02c6e17a6155cb7823437ce9f853e7e6931ddf4876c2ce"}

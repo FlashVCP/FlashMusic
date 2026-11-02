@@ -207,37 +207,37 @@ func (a *app) npCover(c *ui.Context, tr *netease.Track, art *artwork, size float
 		wrap.Opacity(1 - 0.85*min(f, 1))
 	}
 
-	wrap.Children(func() {
-		// The cover breathes: smaller while paused, a little nearer under
-		// the pointer.
-		scale := float32(1)
-		if !pl.Playing() {
-			scale = 0.88
-		}
-		if over {
-			scale *= 1.02
-		}
-		box := ui.Box(c).Fill().Radius(16).Shadow(0, 30, 60, -12, ui.RGBA(0, 0, 0, 0.55))
-		if math.Abs(float64(rx))+math.Abs(float64(ry)) > 0.05 {
-			// In depth only while tilted: flat, it draws as an image does.
-			box.RotateX(rx).RotateY(ry).Perspective(900)
-		}
-		box.AnimatePose(ui.Pose{Scale: scale}, ui.Animation{Spring: ui.SpringOptions{Duration: 600 * time.Millisecond, Bounce: 0.25}})
-		in := artIn(box, bitmap(art))
-		if in < 1 {
-			box.Background(white.Alpha(0.08))
-		}
-		box.Children(func() {
-			artImage(c, bitmap(art), 16, in)
-			if shine > 0.01 {
-				ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) {
-					glareShader().Draw(p, r, shader.Options{Radius: 16, Uniforms: map[string]any{
-						"Center": [2]float32{gx, gy}, "Core": r.W * 0.16, "Sigma": r.W * 0.225, "Alpha": 0.26 * shine,
-					}})
-				})
+		wrap.Children(func() {
+			// The cover breathes: smaller while paused, a little nearer under
+			// the pointer.
+			scale := float32(1)
+			if !pl.Playing() {
+				scale = 0.88
 			}
+			if over {
+				scale *= 1.02
+			}
+			box := ui.Box(c).Fill().Radius(16).Shadow(0, 30, 60, -12, ui.RGBA(0, 0, 0, 0.55))
+			if math.Abs(float64(rx))+math.Abs(float64(ry)) > 0.05 {
+				// In depth only while tilted: flat, it draws as an image does.
+				box.RotateX(rx).RotateY(ry).Perspective(900)
+			}
+			box.AnimatePose(ui.Pose{Scale: scale}, ui.Animation{Spring: ui.SpringOptions{Duration: 600 * time.Millisecond, Bounce: 0.25}})
+			in := artIn(box, bitmap(art))
+			if in < 1 {
+				box.Background(white.Alpha(0.08))
+			}
+			box.Children(func() {
+				artImage(c, bitmap(art), 16, in)
+				if shine > 0.01 {
+					ui.Box(c).Absolute().Top(0).Left(0).Right(0).Bottom(0).PassThrough().Draw(func(p *ui.Painter, r ui.Rect) {
+						glareShader().Draw(p, r, shader.Options{Radius: 16, Uniforms: map[string]any{
+							"Center": [2]float32{gx, gy}, "Core": r.W * 0.16, "Sigma": r.W * 0.225, "Alpha": 0.26 * shine,
+						}})
+					})
+				}
+			})
 		})
-	})
 }
 
 // letSwipeGo ends a trackpad's swipe: flung if it went far enough,

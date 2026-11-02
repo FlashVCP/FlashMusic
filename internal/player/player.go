@@ -837,7 +837,7 @@ func (p *Player) open(t netease.Track, level string) (*netease.Stream, stream, e
 	dl, info, ok := p.Cache.lookup(t.ID, level)
 	if !ok {
 		var err error
-		info, err = netease.SongURL(t.ID, level)
+		info, err = netease.SongURLForTrack(t, level)
 		if err != nil {
 			return nil, nil, err
 		}

@@ -300,11 +300,11 @@ func (a *app) localAlbumsView(c *ui.Context, header func(c *ui.Context)) {
 		defer a.endMark(c)
 		header(c)
 
-		ui.Grid(c).Columns(a.columns(c, 156)).GapX(20).GapY(28).Children(func() {
-			for _, al := range albums {
-				a.localAlbumCard(c, al)
-			}
-		})
+			ui.Grid(c).Columns(a.columns(c, 210)).GapX(20).GapY(28).Children(func() {
+				for _, al := range albums {
+					a.localAlbumCard(c, al)
+				}
+			})
 	})
 }
 
