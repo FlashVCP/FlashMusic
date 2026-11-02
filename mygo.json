@@ -2,11 +2,11 @@
   "name": "FlashMusic",
   "identifier": "io.flashvcp.flashmusic",
   "slug": "flashmusic",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "FlashMusic Community",
   "copyright": "Copyright © 2026 FlashMusic Community",
   "icon": "resources/icon.png",
-  "out": "release",
+  "out": "build",
   "updates": {
     "publicKey": "8OVNh8EU+b7td0FHO9a3cgM0EtLlNWWLVY5LLOn4tbQ=",
     "privateKey": ".keys/mygo-update.key",

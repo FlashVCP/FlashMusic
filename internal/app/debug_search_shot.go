@@ -33,20 +33,28 @@ func init() {
 			// Wait 3s for boot and data loading
 			time.Sleep(3 * time.Second)
 
-			// Step 1: Open Search Landing Page (query empty)
-			step(0, func() {
-				a.open(route{page: pageSearch, query: ""})
-			})
-			time.Sleep(2500 * time.Millisecond)
-			shot("flashmusic_search_landing", a.win)
+				// Step 1: Open Search Landing Page (query empty)
+				step(0, func() {
+					a.open(route{page: pageSearch, query: ""})
+				})
+				time.Sleep(2500 * time.Millisecond)
+				shot("flashmusic_search_landing", a.win)
 
-			// Step 2: Search for "刀郎" (Replicating User Figure 3)
-			step(0, func() {
-				a.query = "刀郎"
-				a.search("刀郎")
-			})
-			time.Sleep(3500 * time.Millisecond)
-			shot("flashmusic_search_daolang", a.win)
+				// Step 2: Switch to "流行" category playlist view
+				step(0, func() {
+					a.searchCat = "流行"
+					a.loadCategoryPlaylists("流行")
+				})
+				time.Sleep(3000 * time.Millisecond)
+				shot("flashmusic_search_cat_pop", a.win)
+
+				// Step 3: Search for "刀郎" (Replicating User Figure 3)
+				step(0, func() {
+					a.query = "刀郎"
+					a.search("刀郎")
+				})
+				time.Sleep(3500 * time.Millisecond)
+				shot("flashmusic_search_daolang", a.win)
 
 			println("[FM_SHOT] All shots finished.")
 			time.Sleep(500 * time.Millisecond)

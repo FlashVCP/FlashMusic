@@ -1,9 +1,9 @@
 /build/
-/dist/
-/release/
 /.mygo/
 /.keys/
+/test-run-*/
 *.key
+scripts/publish-release.py
 mygo_windows_*.syso
 /netease-music-mygo
 /node_modules/
