@@ -1,6 +1,9 @@
 package netease
 
-import "testing"
+import (
+	"os"
+	"testing"
+)
 
 func TestPlayableFollowsPrivilege(t *testing.T) {
 	tracks := []Track{{ID: 1, Fee: 1}, {ID: 2, Fee: 8}, {ID: 3, Fee: 8}, {ID: 4, Fee: 1}}
@@ -12,6 +15,9 @@ func TestPlayableFollowsPrivilege(t *testing.T) {
 }
 
 func TestVIPSongResolve(t *testing.T) {
+	if os.Getenv("LIVE") == "" {
+		t.Skip("skipping live network test without LIVE=1")
+	}
 	tr := Track{
 		ID:      186016,
 		Name:    "晴天",
